@@ -867,6 +867,45 @@ function ScenariosTab() {
   const need = Math.max(0, tP - pts + 1);
   const ord = (n) => ["st","nd","rd"][n-1] || "th";
 
+  // Playoff path based on target regular-season position
+  const PLAYOFF_PATHS = {
+    champ: {
+      label: "Championship Playoffs", color: "#3d8af7",
+      range: "1st–4th",
+      rules: "Carry 100% of regular season pts · Play each other team H&A (6 games)",
+      outcomes: [
+        { label: "Champion", color: "#FFB800", desc: "1st in group" },
+        { label: "European spot (UCL/UEL)", color: "#3d8af7", desc: "2nd–3rd in group" },
+        { label: "Conference League", color: "#7b9ef0", desc: "4th in group" },
+      ],
+    },
+    europe: {
+      label: "Europe Playoffs", color: "#00985f",
+      range: "5th–8th",
+      rules: "Carry 50% of regular season pts (rounded up) · Play each other team H&A (6 games)",
+      outcomes: [
+        { label: "UECL qualifying (1st)", color: "#00985f", desc: "1st in group" },
+        { label: "No European spot", color: "#9e9e9e", desc: "2nd–4th in group" },
+      ],
+    },
+    releg: {
+      label: "Relegation Playouts", color: "#e03535",
+      range: "9th–14th",
+      rules: "Carry 100% of regular season pts · Play each other team H&A (10 games)",
+      outcomes: [
+        { label: "Safe", color: "#00985f", desc: "1st–4th in group" },
+        { label: "Relegated", color: "#e03535", desc: "5th–6th in group" },
+      ],
+    },
+  };
+  const pathKey = target <= 4 ? "champ" : target <= 8 ? "europe" : "releg";
+  const path = PLAYOFF_PATHS[pathKey];
+
+  // MC outcome probabilities for this team (from lastMCResult if available)
+  const mc = lastMCResult;
+  const oc = mc ? mc.outcomeCounts[team] : null;
+  const mcPct = (v) => Math.round(v / mc.N * 100);
+
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
@@ -878,7 +917,7 @@ function ScenariosTab() {
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>TARGET POSITION</label>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>TARGET REGULAR SEASON POSITION</label>
           <select value={target} onChange={e => setTarget(parseInt(e.target.value))}
             style={{ width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }}>
             {Array.from({ length: 14 }, (_, i) => (
@@ -913,6 +952,63 @@ function ScenariosTab() {
           </div>
         )}
       </div>
+
+      {/* Playoff path for target position */}
+      <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${path.color}` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>PLAYOFF PATH</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: path.color }}>{path.label}</span>
+          <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "var(--color-background-secondary,#f5f5f5)", padding: "2px 8px", borderRadius: 8 }}>{path.range}</span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", marginBottom: 10 }}>{path.rules}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>POSSIBLE FINAL OUTCOMES</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {path.outcomes.map(o => (
+            <div key={o.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: o.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: o.color }}>{o.label}</span>
+              <span style={{ fontSize: 11, color: "var(--color-text-tertiary,#aaa)" }}>{o.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* MC simulation outcome probabilities */}
+      {oc ? (
+        <div style={{ ...S.card, padding: 14, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 10 }}>
+            SIMULATED FINAL OUTCOMES — {T(team)?.name}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { key: "champion",  label: "Champion",             color: "#FFB800" },
+              { key: "european",  label: "European (2nd–4th)",   color: "#3d8af7" },
+              { key: "euPO",      label: "Europe PO (5th–8th)",  color: "#00985f" },
+              { key: "safe",      label: "Safe (9th–12th)",      color: "#9e9e9e" },
+              { key: "relegated", label: "Relegated",            color: "#e03535" },
+            ].map(o => {
+              const p = mcPct(oc[o.key]);
+              if (p === 0) return null;
+              return (
+                <div key={o.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: o.color, fontWeight: 600, width: 160, flexShrink: 0 }}>{o.label}</span>
+                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--color-background-secondary,#f0f0f0)", overflow: "hidden" }}>
+                    <div style={{ width: p + "%", height: "100%", background: o.color, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: o.color, width: 36, textAlign: "right" }}>{p}%</span>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", margin: "8px 0 0", lineHeight: 1.4 }}>
+            Based on {mc.N.toLocaleString()} simulations from the Simulate tab.
+          </p>
+        </div>
+      ) : (
+        <div style={{ ...S.card, padding: 14, marginBottom: 14, color: "var(--color-text-secondary,#888)", fontSize: 12 }}>
+          Run the simulation in the <strong>Simulate</strong> tab to see full outcome probabilities here.
+        </div>
+      )}
 
       {rem.length > 0 && (
         <>
@@ -964,37 +1060,104 @@ function simMatch(hId, aId, model) {
   };
 }
 
+// ─── Playoff group simulator (round-robin H&A) ───────────────────────────────
+function simPlayoffGroup(teams, carryPts, model) {
+  const pts = {}, gd = {}, gfs = {};
+  teams.forEach(t => { pts[t] = carryPts[t] || 0; gd[t] = 0; gfs[t] = 0; });
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      const r1 = simMatch(teams[i], teams[j], model);
+      const r2 = simMatch(teams[j], teams[i], model);
+      if (r1.homeScore > r1.awayScore)      { pts[teams[i]] += 3; }
+      else if (r1.homeScore < r1.awayScore) { pts[teams[j]] += 3; }
+      else                                  { pts[teams[i]]++; pts[teams[j]]++; }
+      gd[teams[i]] += r1.homeScore - r1.awayScore; gd[teams[j]] += r1.awayScore - r1.homeScore;
+      gfs[teams[i]] += r1.homeScore; gfs[teams[j]] += r1.awayScore;
+      if (r2.homeScore > r2.awayScore)      { pts[teams[j]] += 3; }
+      else if (r2.homeScore < r2.awayScore) { pts[teams[i]] += 3; }
+      else                                  { pts[teams[j]]++; pts[teams[i]]++; }
+      gd[teams[j]] += r2.homeScore - r2.awayScore; gd[teams[i]] += r2.awayScore - r2.homeScore;
+      gfs[teams[j]] += r2.homeScore; gfs[teams[i]] += r2.awayScore;
+    }
+  }
+  return [...teams].sort((a, b) => (pts[b] - pts[a]) || (gd[b] - gd[a]) || (gfs[b] - gfs[a]));
+}
+
+// Cache last MC result so ScenariosTab can access without re-running
+let lastMCResult = null;
+
 function runMonteCarlo(N = 10000) {
   const played = MATCHES.filter(m => m.played);
   const unplayed = MATCHES.filter(m => !m.played);
-  if (unplayed.length === 0) return null;
+  if (unplayed.length === 0) { lastMCResult = null; return null; }
   const model = buildStrengthModel(played);
-  const zoneCounts = {};
-  const posCounts = {};
-  const ptsSums = {};
-  LEAGUE.teams.forEach(t => { zoneCounts[t.id]={ch:0,eu:0,re:0}; posCounts[t.id]=Array(14).fill(0); ptsSums[t.id]=0; });
+  // posCounts tracks FINAL positions (1-14) after playoffs, not just regular season
+  const posCounts = {}, ptsSums = {}, outcomeCounts = {};
+  LEAGUE.teams.forEach(t => {
+    posCounts[t.id] = Array(14).fill(0);
+    ptsSums[t.id] = 0;
+    outcomeCounts[t.id] = { champion: 0, european: 0, euPO: 0, safe: 0, relegated: 0 };
+  });
   for (let i = 0; i < N; i++) {
     const sim = unplayed.map(m => ({ ...m, played: true, goals: [], ...simMatch(m.homeTeamId, m.awayTeamId, model) }));
     const st = calcStandings([...played, ...sim]);
-    st.forEach((s, idx) => {
-      posCounts[s.id][idx]++;
-      ptsSums[s.id] += s.pts;
-      if (idx < 4) zoneCounts[s.id].ch++;
-      else if (idx < 8) zoneCounts[s.id].eu++;
-      else zoneCounts[s.id].re++;
+    const stMap = {};
+    st.forEach(s => { stMap[s.id] = s; ptsSums[s.id] += s.pts; });
+
+    const champTeams = st.slice(0,4).map(s => s.id);
+    const euroTeams  = st.slice(4,8).map(s => s.id);
+    const relegTeams = st.slice(8,14).map(s => s.id);
+
+    const champCarry = {}, euroCarry = {}, relegCarry = {};
+    champTeams.forEach(id => { champCarry[id] = stMap[id].pts; });
+    euroTeams.forEach(id  => { euroCarry[id]  = Math.ceil(stMap[id].pts * 0.5); });
+    relegTeams.forEach(id => { relegCarry[id] = stMap[id].pts; });
+
+    const champFinal = simPlayoffGroup(champTeams, champCarry, model);
+    const euroFinal  = simPlayoffGroup(euroTeams,  euroCarry,  model);
+    const relegFinal = simPlayoffGroup(relegTeams, relegCarry, model);
+
+    // Final positions: Champ group → 1-4, Euro group → 5-8, Releg group → 9-14
+    champFinal.forEach((id, idx) => {
+      posCounts[id][idx]++;
+      if (idx === 0) outcomeCounts[id].champion++;
+      else           outcomeCounts[id].european++;
+    });
+    euroFinal.forEach((id, idx) => {
+      posCounts[id][4 + idx]++;
+      outcomeCounts[id].euPO++;
+    });
+    relegFinal.forEach((id, idx) => {
+      posCounts[id][8 + idx]++;
+      if (idx >= 4) outcomeCounts[id].relegated++;
+      else          outcomeCounts[id].safe++;
     });
   }
-  return { zoneCounts, posCounts, ptsSums, N, unplayedCount: unplayed.length };
+  const result = { posCounts, ptsSums, outcomeCounts, N, unplayedCount: unplayed.length };
+  lastMCResult = result;
+  return result;
 }
 
 // ─── Tab: Simulate ────────────────────────────────────────────────────────────
+// Final position colors: 1=champion gold, 2-4=UEFA blue, 5-8=euro PO green, 9-12=safe gray, 13-14=relegated red
+const POS_COLORS = [
+  "#FFB800",
+  "#3d8af7","#3d8af7","#3d8af7",
+  "#00985f","#00985f","#00985f","#00985f",
+  "#9e9e9e","#9e9e9e","#9e9e9e","#9e9e9e",
+  "#e03535","#e03535",
+];
+const POS_LABEL = (p) =>
+  p === 1  ? "Champion" :
+  p <= 4   ? "European" :
+  p <= 8   ? "Europe PO" :
+  p <= 12  ? "Safe" : "Relegated";
+
 function SimulateTab() {
   const [sims, setSims] = useState(null);
   const [running, setRunning] = useState(false);
   const [n, setN] = useState(10000);
   const currentSt = useMemo(() => calcStandings(MATCHES.filter(m => m.played)), []);
-  const currentPos = {};
-  currentSt.forEach((s, i) => { currentPos[s.id] = i + 1; });
   const unplayed = MATCHES.filter(m => !m.played);
 
   const run = () => {
@@ -1007,23 +1170,15 @@ function SimulateTab() {
 
   useEffect(() => { run(); }, []);
 
-  const zoneLabel = (pos) => pos < 4 ? "ch" : pos < 8 ? "eu" : "re";
-
   return (
     <div>
       <div style={{ ...S.card, padding: "12px 14px", marginBottom: 14, borderLeft: "3px solid #3d8af7" }}>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> using a <strong>Poisson goal model</strong>:
-          for each fixture we compute an expected home goals λ<sub>H</sub> = avgHome × homeAttack × awayDef and away λ<sub>A</sub> = avgAway × awayAttack × homeDef,
-          where attack/defense indices are derived from each team's real 2025-26 goal ratios relative to the league mean.
-          Goals are sampled independently from Poisson(λ). Home advantage is implicitly captured by the historical home/away goal averages.
-          Each simulation produces a full final table; probabilities are the fraction of {n.toLocaleString()} runs each team spends in each zone.
+          Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a <strong>Poisson goal model</strong>.
+          For each fixture: λ<sub>H</sub> = avgHome × homeAttack × awayDef, λ<sub>A</sub> = avgAway × awayAttack × homeDef.
+          Playoff groups use the real carry-over rules (100% pts for Champ/Releg groups, 50% rounded up for Europe group).
+          Probabilities shown are <strong>final season outcomes</strong> after all games including playoffs.
         </p>
-        <div style={{ ...S.card, padding: "8px 12px", marginBottom: 10, background: "rgba(224,53,53,0.05)", borderLeft: "3px solid #e03535" }}>
-          <span style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", lineHeight: 1.4 }}>
-            ⚠️ <strong>Note on "Rel. Playoffs" zone:</strong> positions 9–14 enter the <em>Relegation Playouts</em> group — only the <strong>bottom 2</strong> of those 6 teams are actually relegated. A high "Rel. Playoffs %" does <em>not</em> mean actual relegation.
-          </span>
-        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)" }}>Simulations:</span>
@@ -1037,6 +1192,22 @@ function SimulateTab() {
         </div>
       </div>
 
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        {[
+          { c: "#FFB800", l: "Champion" },
+          { c: "#3d8af7", l: "European (2nd–4th)" },
+          { c: "#00985f", l: "Europe PO (5th–8th)" },
+          { c: "#9e9e9e", l: "Safe (9th–12th)" },
+          { c: "#e03535", l: "Relegated (13th–14th)" },
+        ].map(z => (
+          <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--color-text-secondary,#777)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: z.c, display: "inline-block" }} />
+            {z.l}
+          </span>
+        ))}
+      </div>
+
       {sims === null && !running && (
         <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>All matches played — no simulation needed.</div>
       )}
@@ -1044,61 +1215,74 @@ function SimulateTab() {
       {sims && (
         <>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 10 }}>
-            ZONE PROBABILITIES — {sims.N.toLocaleString()} SIMULATIONS
-          </div>
-          {/* Legend */}
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
-            {[{c:ZONE_COLORS.ch,l:"Champ. Playoffs (1–4)"},{c:ZONE_COLORS.eu,l:"Euro Playoffs (5–8)"},{c:ZONE_COLORS.re,l:"Rel. Playoffs (9–14)"}].map(z=>(
-              <span key={z.l} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:"var(--color-text-secondary,#777)"}}>
-                <span style={{width:10,height:10,borderRadius:2,background:z.c,display:"inline-block"}}/>
-                {z.l}
-              </span>
-            ))}
+            FINAL POSITION PROBABILITIES — {sims.N.toLocaleString()} SIMULATIONS
           </div>
           <div style={{ ...S.card }}>
             {currentSt.map((s, i) => {
-              const { ch, eu, re } = sims.zoneCounts[s.id];
-              const chPct = Math.round(ch / sims.N * 100);
-              const euPct = Math.round(eu / sims.N * 100);
-              const rePct = Math.round(re / sims.N * 100);
+              const pc = sims.posCounts[s.id];
+              const oc = sims.outcomeCounts[s.id];
               const avgPts = Math.round(sims.ptsSums[s.id] / sims.N);
-              const modalPos = sims.posCounts[s.id].indexOf(Math.max(...sims.posCounts[s.id])) + 1;
+              const modalPos = pc.indexOf(Math.max(...pc)) + 1;
               const tt = T(s.id);
-              const curZone = zoneLabel(i);
+              const pct = (v) => Math.round(v / sims.N * 100);
               return (
                 <div key={s.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border-tertiary,#f0f0f0)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
                     <span style={{ fontSize: 11, color: "#999", width: 18, textAlign: "right", flexShrink: 0 }}>{i+1}</span>
                     <span style={S.teamDot(tt?.color, 9)} />
                     <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{tt?.name}</span>
                     <span style={{ fontSize: 11, color: "#999" }}>~{avgPts} pts</span>
                     <span style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", background: "var(--color-background-secondary,#f5f5f5)", padding: "1px 7px", borderRadius: 8 }}>
-                      Most likely: <strong>#{modalPos}</strong>
+                      Most likely: <strong>#{modalPos} — {POS_LABEL(modalPos)}</strong>
                     </span>
                   </div>
-                  {/* Stacked probability bar */}
-                  <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", gap: 1, marginBottom: 5 }}>
-                    {chPct > 0 && <div style={{ width: chPct + "%", background: ZONE_COLORS.ch }} />}
-                    {euPct > 0 && <div style={{ width: euPct + "%", background: ZONE_COLORS.eu }} />}
-                    {rePct > 0 && <div style={{ width: rePct + "%", background: ZONE_COLORS.re }} />}
+                  {/* Position heatmap strip: 14 slots, width ∝ probability */}
+                  <div style={{ display: "flex", height: 10, borderRadius: 4, overflow: "hidden", marginBottom: 6, background: "var(--color-background-secondary,#f0f0f0)" }}>
+                    {pc.map((cnt, pos) => {
+                      const w = cnt / sims.N * 100;
+                      if (w < 0.3) return null;
+                      return (
+                        <div key={pos} title={`${pos+1}${["st","nd","rd"][pos]||"th"} (${POS_LABEL(pos+1)}): ${w.toFixed(1)}%`}
+                          style={{ width: w + "%", background: POS_COLORS[pos], opacity: 0.85 + (w > 20 ? 0.15 : w/133) }} />
+                      );
+                    })}
                   </div>
-                  <div style={{ display: "flex", gap: 12 }}>
+                  {/* Position number markers */}
+                  <div style={{ display: "flex", marginBottom: 5 }}>
+                    {pc.map((cnt, pos) => {
+                      const w = cnt / sims.N * 100;
+                      if (w < 3) return null;
+                      return (
+                        <div key={pos} style={{ width: w + "%", textAlign: "center", fontSize: 9, color: POS_COLORS[pos], fontWeight: 700, overflow: "hidden" }}>
+                          {pos+1}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Outcome pills */}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {[
-                      { pct: chPct, c: ZONE_COLORS.ch, l: "Champ." },
-                      { pct: euPct, c: ZONE_COLORS.eu, l: "Euro" },
-                      { pct: rePct, c: ZONE_COLORS.re, l: "Rel. PO" },
-                    ].map(z => (
-                      <span key={z.l} style={{ fontSize: 11, color: z.pct > 0 ? z.c : "var(--color-text-tertiary,#bbb)", fontWeight: z.pct > 50 ? 700 : 500 }}>
-                        {z.l} {z.pct}%
-                      </span>
-                    ))}
+                      { key: "champion",  label: "Champion",    color: "#FFB800" },
+                      { key: "european",  label: "European",    color: "#3d8af7" },
+                      { key: "euPO",      label: "Europe PO",   color: "#00985f" },
+                      { key: "safe",      label: "Safe",        color: "#9e9e9e" },
+                      { key: "relegated", label: "Relegated",   color: "#e03535" },
+                    ].filter(o => oc[o.key] > 0).map(o => {
+                      const p = pct(oc[o.key]);
+                      return (
+                        <span key={o.key} style={{ fontSize: 11, color: o.color, fontWeight: p > 50 ? 700 : 500 }}>
+                          {o.label} <strong>{p}%</strong>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
           </div>
           <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 8, lineHeight: 1.4 }}>
-            Calibrated on {MATCHES.filter(m=>m.played).length} played matches. "Rel. Playoffs" = enters the 9th–14th group; only the bottom 2 of that group are actually relegated.
+            Calibrated on {MATCHES.filter(m=>m.played).length} played matches. Final positions after simulating regular season + all three playoff phases. Bottom 2 of Relegation group = relegated.
           </p>
         </>
       )}
