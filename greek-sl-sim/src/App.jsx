@@ -857,7 +857,9 @@ function PredictTab({ predictions, setPredictions }) {
 function ScenariosTab() {
   const [team, setTeam] = useState("pao");
   const [target, setTarget] = useState(1);
+  const [showAllFixtures, setShowAllFixtures] = useState(false);
   const st = useMemo(() => calcStandings(MATCHES.filter(mm => mm.played)), []);
+  const projPostSeason = useMemo(() => generatePostSeason(st), []);
   const pos = st.findIndex(s => s.id === team) + 1;
   const pts = st.find(s => s.id === team)?.pts || 0;
   const rem = MATCHES.filter(mm => !mm.played && (mm.homeTeamId === team || mm.awayTeamId === team));
@@ -884,8 +886,8 @@ function ScenariosTab() {
       range: "5th–8th",
       rules: "Carry 50% of regular season pts (rounded up) · Play each other team H&A (6 games)",
       outcomes: [
-        { label: "UECL qualifying (1st)", color: "#00985f", desc: "1st in group" },
-        { label: "No European spot", color: "#9e9e9e", desc: "2nd–4th in group" },
+        { label: "European — UECL qualifying", color: "#3d8af7", desc: "1st in group" },
+        { label: "No European spot",           color: "#9e9e9e", desc: "2nd–4th in group" },
       ],
     },
     releg: {
@@ -982,8 +984,8 @@ function ScenariosTab() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
               { key: "champion",  label: "Champion",             color: "#FFB800" },
-              { key: "european",  label: "European (2nd–4th)",   color: "#3d8af7" },
-              { key: "euPO",      label: "Europe PO (5th–8th)",  color: "#00985f" },
+              { key: "european",  label: "European (2nd–5th)",   color: "#3d8af7" },
+              { key: "euPO",      label: "Europe PO (6th–8th)",  color: "#00985f" },
               { key: "safe",      label: "Safe (9th–12th)",      color: "#9e9e9e" },
               { key: "relegated", label: "Relegated",            color: "#e03535" },
             ].map(o => {
@@ -1012,12 +1014,66 @@ function ScenariosTab() {
 
       {rem.length > 0 && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING FIXTURES</div>
-          <div style={{ ...S.card }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING REGULAR SEASON FIXTURES</div>
+          <div style={{ ...S.card, marginBottom: 14 }}>
             {rem.map(mm => <MatchCard key={mm.id} match={mm} showGoals={false} />)}
           </div>
         </>
       )}
+
+      {/* Projected playoff fixtures based on current standings */}
+      {(() => {
+        const teamPhase = projPostSeason.phases.find(ph => ph.teams.includes(team));
+        if (!teamPhase) return null;
+        const allPhaseFixtures = projPostSeason.fixtures.filter(fx => fx.phase === teamPhase.id);
+        const teamFixtures = allPhaseFixtures.filter(fx => fx.homeTeamId === team || fx.awayTeamId === team);
+        const otherFixtures = allPhaseFixtures.filter(fx => fx.homeTeamId !== team && fx.awayTeamId !== team);
+        const phaseColor = teamPhase.id === "champ" ? ZONE_COLORS.ch : teamPhase.id === "europe" ? ZONE_COLORS.eu : ZONE_COLORS.re;
+        const regSeasonDone = MATCHES.filter(m => !m.played).length === 0;
+        return (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>
+              {regSeasonDone ? "PLAYOFF FIXTURES" : "PROJECTED PLAYOFF FIXTURES"}
+            </div>
+            <div style={{ ...S.card, padding: 14, marginBottom: 8, borderLeft: `4px solid ${phaseColor}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{teamPhase.name}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", marginBottom: 4 }}>
+                {teamPhase.teams.map(id => T(id)?.name || id).join(" · ")}
+              </div>
+              {!regSeasonDone && (
+                <div style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginBottom: 8 }}>
+                  Based on current standings — may change when MD26 is played
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>
+              {T(team)?.name}'s fixtures ({teamFixtures.length} games)
+            </div>
+            <div style={{ ...S.card, marginBottom: 10 }}>
+              {teamFixtures.map(fx => <MatchCard key={fx.id} match={fx} showGoals={false} />)}
+            </div>
+            {otherFixtures.length > 0 && (
+              <>
+                <button onClick={() => setShowAllFixtures(v => !v)}
+                  style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 6 }}>
+                  {showAllFixtures ? "▾ Hide" : "▸ Show"} all {teamPhase.name} fixtures ({allPhaseFixtures.length} total)
+                </button>
+                {showAllFixtures && (
+                  <div style={{ ...S.card, marginBottom: 14 }}>
+                    {allPhaseFixtures.map(fx => (
+                      <div key={fx.id} style={{ opacity: (fx.homeTeamId === team || fx.awayTeamId === team) ? 1 : 0.55 }}>
+                        <MatchCard match={fx} showGoals={false} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -1125,7 +1181,8 @@ function runMonteCarlo(N = 10000) {
     });
     euroFinal.forEach((id, idx) => {
       posCounts[id][4 + idx]++;
-      outcomeCounts[id].euPO++;
+      if (idx === 0) outcomeCounts[id].european++;  // 5th = UECL European spot
+      else           outcomeCounts[id].euPO++;
     });
     relegFinal.forEach((id, idx) => {
       posCounts[id][8 + idx]++;
@@ -1139,17 +1196,19 @@ function runMonteCarlo(N = 10000) {
 }
 
 // ─── Tab: Simulate ────────────────────────────────────────────────────────────
-// Final position colors: 1=champion gold, 2-4=UEFA blue, 5-8=euro PO green, 9-12=safe gray, 13-14=relegated red
+// Final position colors:
+//   1=champion gold, 2-5=European blue (5th wins UECL spot via Europe PO),
+//   6-8=Europe PO green (no European), 9-12=safe gray, 13-14=relegated red
 const POS_COLORS = [
   "#FFB800",
-  "#3d8af7","#3d8af7","#3d8af7",
-  "#00985f","#00985f","#00985f","#00985f",
+  "#3d8af7","#3d8af7","#3d8af7","#3d8af7",
+  "#00985f","#00985f","#00985f",
   "#9e9e9e","#9e9e9e","#9e9e9e","#9e9e9e",
   "#e03535","#e03535",
 ];
 const POS_LABEL = (p) =>
   p === 1  ? "Champion" :
-  p <= 4   ? "European" :
+  p <= 5   ? "European" :
   p <= 8   ? "Europe PO" :
   p <= 12  ? "Safe" : "Relegated";
 
@@ -1196,8 +1255,8 @@ function SimulateTab() {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
         {[
           { c: "#FFB800", l: "Champion" },
-          { c: "#3d8af7", l: "European (2nd–4th)" },
-          { c: "#00985f", l: "Europe PO (5th–8th)" },
+          { c: "#3d8af7", l: "European (2nd–5th)" },
+          { c: "#00985f", l: "Europe PO no UEFA (6th–8th)" },
           { c: "#9e9e9e", l: "Safe (9th–12th)" },
           { c: "#e03535", l: "Relegated (13th–14th)" },
         ].map(z => (
