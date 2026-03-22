@@ -864,10 +864,22 @@ function ScenariosTab() {
   const pts = st.find(s => s.id === team)?.pts || 0;
   const rem = MATCHES.filter(mm => !mm.played && (mm.homeTeamId === team || mm.awayTeamId === team));
   const maxP = pts + rem.length * 3;
-  const tT = st[target - 1];
-  const tP = tT?.pts || 0;
-  const need = Math.max(0, tP - pts + 1);
   const ord = (n) => ["st","nd","rd"][n-1] || "th";
+
+  // Correct impossibility and points-needed calculation:
+  // In the best case for this team: it wins all remaining games (maxP pts),
+  // AND every other team loses all remaining (their pts stay at current minimum).
+  // Sort others by their minimum possible pts (descending).
+  const othersSorted = st.filter(s => s.id !== team).sort((a, b) => b.pts - a.pts);
+  // The team that would be exactly at position `target` among others if team reaches target:
+  // team needs to beat the team at rank `target` among others (0-indexed: target-1).
+  const cutoff = othersSorted[target - 1];       // the Kth-highest other team
+  const cutoffPts = cutoff?.pts ?? 0;
+  const need = Math.max(0, cutoffPts - pts + 1); // pts needed to exceed the cutoff team
+  // Teams that can NEVER be overtaken (their current pts > team's max)
+  const lockedAbove = othersSorted.filter(s => s.pts > maxP).length;
+  const impossible = lockedAbove >= target;       // at least `target` teams always above
+  const alreadyThere = !impossible && need === 0;
 
   // Playoff path based on target regular-season position
   const PLAYOFF_PATHS = {
@@ -943,14 +955,25 @@ function ScenariosTab() {
         ))}
       </div>
 
-      <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${maxP < tP ? "#e03535" : pos <= target ? "#00985f" : "#3d8af7"}` }}>
-        {maxP < tP ? (
-          <div style={{ color: "#e03535", fontSize: 13, fontWeight: 600 }}>Mathematically impossible to reach {target}{ord(target)} place.</div>
-        ) : pos <= target ? (
-          <div style={{ color: "#00985f", fontSize: 13, fontWeight: 600 }}>Already at {pos}{ord(pos)} — above the {target}{ord(target)} target.</div>
+      <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${impossible ? "#e03535" : alreadyThere ? "#00985f" : "#3d8af7"}` }}>
+        {impossible ? (
+          <>
+            <div style={{ color: "#e03535", fontSize: 13, fontWeight: 600, marginBottom: pos <= 4 && target <= 4 ? 6 : 0 }}>
+              Mathematically impossible to finish {target}{ord(target)} in the regular season.
+            </div>
+            {pos <= 4 && target <= 4 && (
+              <div style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", lineHeight: 1.5 }}>
+                Already in the Championship Playoffs (top 4) — the exact regular season rank among the top 4 doesn't determine who's Champion. The Champion is decided in the playoff group, where all four teams can win it.
+              </div>
+            )}
+          </>
+        ) : alreadyThere ? (
+          <div style={{ color: "#00985f", fontSize: 13, fontWeight: 600 }}>
+            Currently at {pos}{ord(pos)} — already at or above {target}{ord(target)} place.
+          </div>
         ) : (
           <div style={{ fontSize: 13 }}>
-            Need <strong style={{ color: "#3d8af7", fontSize: 15 }}>{need} pts</strong> — that's <strong>{Math.ceil(need / 3)} wins</strong> from {rem.length} remaining games to reach {target}{ord(target)}.
+            Need <strong style={{ color: "#3d8af7", fontSize: 15 }}>{need} pts</strong> — that's at least <strong>{Math.ceil(need / 3)} win{Math.ceil(need/3)!==1?"s":""}</strong> from {rem.length} remaining game{rem.length!==1?"s":""} to reach {target}{ord(target)}.
           </div>
         )}
       </div>
