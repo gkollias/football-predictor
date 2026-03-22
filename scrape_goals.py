@@ -113,6 +113,7 @@ def parse_minute(event_min_div):
         elif isinstance(child, str):
             base += child.strip()
 
+    base = base.rstrip("'").strip()   # strip trailing apostrophe: "14'" → "14"
     try:
         minute = int(base)
         if added:
@@ -205,9 +206,16 @@ def fetch_goals(gid, session, timeout=30, max_retries=3):
                     player = a_tag.get_text(strip=True)
 
         if player and minute:
+            # For own goals the scoring team is the OPPOSITE of where the icon appears
+            # e.g. event_ht_icon OG → own goal by home player → counts for away team
+            if is_own_goal:
+                scoring_side = "away" if side == "home" else "home"
+            else:
+                scoring_side = side
             goal_entry = {
                 "player": f"{player} (OG)" if is_own_goal else player,
                 "minute": minute,
+                "side": scoring_side,   # "home" or "away" — which team the goal counts for
             }
             goals.append(goal_entry)
 
