@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "cd greek-sl-sim && npm run build",
   "outputDirectory": "greek-sl-sim/dist",
   "installCommand": "cd greek-sl-sim && npm install",
   "framework": "vite",
