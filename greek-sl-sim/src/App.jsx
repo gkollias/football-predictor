@@ -207,14 +207,14 @@ m(25,"kif","volos",2,0,[g("Nikos Christopoulos",25,"kif"),g("Jorge Pombo",68,"ki
 m(25,"paok","lev",3,0,[g("Taison",7,"paok"),g("Alexander Jeremejeff",47,"paok"),g("Dimitrios Chatsidis",57,"paok")]),
 m(25,"atro","aek",2,2,[g("Giorgos Mitoglou",33,"atro"),g("Luka Jovic",63,"aek"),g("Luka Jovic",69,"aek"),g("Samuel Moutoussamy",71,"atro")]),
 m(25,"pao","pane",0,0,[]),
-// MD 26 — upcoming (March 29 – April 4, 2026)
-m(26,"oly","ael",null,null),
-m(26,"ast","pao",null,null),
-m(26,"pane","pans",null,null),
-m(26,"volos","paok",null,null),
-m(26,"lev","atro",null,null),
-m(26,"aek","kif",null,null),
-m(26,"aris","ofi",null,null),
+// MD 26 — March 22, 2026
+m(26,"oly","ael",0,0,[]),
+m(26,"ast","pao",1,2,[]),
+m(26,"pane","pans",0,0,[]),
+m(26,"volos","paok",2,1,[]),
+m(26,"lev","atro",1,0,[]),
+m(26,"aek","kif",3,0,[]),
+m(26,"aris","ofi",0,2,[]),
 ].map((x, i) => ({ ...x, id: i + 1 }));
 
 // ─── Playoff state (stored outside component so it persists across tab switches)
@@ -1523,7 +1523,7 @@ export default function App() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.3, color: "var(--color-text-primary,#111)" }}>Greek Super League</div>
             <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", fontWeight: 500 }}>
-              2025–26 · Matchday {lp} of 26 · Playoffs begin Apr 4
+              2025–26 · Regular Season Complete · Playoffs begin Apr 4
             </div>
           </div>
         </div>
