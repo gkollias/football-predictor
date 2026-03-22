@@ -1308,8 +1308,8 @@ function SimulateTab() {
       <div style={{ ...S.card, padding: "12px 14px", marginBottom: 14, borderLeft: "3px solid #3d8af7" }}>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: "0 0 10px", lineHeight: 1.5 }}>
           {unplayed.length === 0
-            ? <>Regular season is complete. Simulating all <strong>three playoff phases</strong> from final standings using a <strong>Poisson goal model</strong>. Carry-over rules: 100% pts for Championship &amp; Relegation groups, 50% (rounded up) for Europe group. Probabilities are <strong>final season outcomes</strong>.</>
-            : <>Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a <strong>Poisson goal model</strong>. λ<sub>H</sub> = avgHome × homeAttack × awayDef; λ<sub>A</sub> = avgAway × awayAttack × homeDef. Carry-over rules: 100% pts for Champ/Releg groups, 50% rounded up for Europe group. Probabilities are <strong>final season outcomes</strong>.</>
+            ? <>Regular season complete. Simulates all <strong>three playoff phases</strong> from final standings using a Poisson goal model calibrated on 26 matchdays. Carry-over: 100% for Championship &amp; Relegation groups, 50% (rounded up) for Europe group.</>
+            : <>Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a Poisson goal model. Carry-over: 100% for Champ/Releg groups, 50% rounded up for Europe group.</>
           }
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1546,6 +1546,19 @@ function TopScorersTab() {
   );
 }
 
+// ─── Scenarios placeholder (tab disabled pending rewrite) ────────────────────
+function ScenariosPlaceholder() {
+  return (
+    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--color-text-tertiary,#aaa)" }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>🔧</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-secondary,#666)", marginBottom: 8 }}>Scenarios coming soon</div>
+      <div style={{ fontSize: 13, maxWidth: 280, margin: "0 auto", lineHeight: 1.6 }}>
+        This tab is being updated for the playoff phase. Use the <strong>Simulate</strong> tab for probability analysis in the meantime.
+      </div>
+    </div>
+  );
+}
+
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("standings");
@@ -1555,12 +1568,12 @@ export default function App() {
   const tabs = [
     { id: "standings", label: "Standings" },
     { id: "fixtures",  label: "Fixtures" },
-    { id: "minutes",   label: "Minutes" },
     { id: "playoffs",  label: "Playoffs" },
-    { id: "scorers",   label: "Scorers" },
     { id: "simulate",  label: "Simulate" },
-    { id: "predict",   label: "Predict" },
     { id: "scenarios", label: "Scenarios" },
+    { id: "timeline",  label: "Timeline" },
+    // { id: "predict",  label: "Predict" },   // removed: no unplayed regular season matches
+    // { id: "scorers",  label: "Scorers" },   // removed: incomplete goalscorer data
   ];
 
   return (
@@ -1593,12 +1606,12 @@ export default function App() {
       <div style={{ padding: "14px 12px 0" }}>
         {tab === "standings"  && <StandingsTab />}
         {tab === "fixtures"   && <FixturesTab />}
-        {tab === "minutes"    && <MinutesTab />}
         {tab === "playoffs"   && <PlayoffsTab />}
-        {tab === "scorers"    && <TopScorersTab />}
         {tab === "simulate"   && <SimulateTab />}
-        {tab === "predict"    && <PredictTab predictions={pred} setPredictions={setPred} />}
-        {tab === "scenarios"  && <ScenariosTab />}
+        {tab === "scenarios"  && <ScenariosPlaceholder />}
+        {tab === "timeline"   && <MinutesTab />}
+        {/* {tab === "predict"   && <PredictTab predictions={pred} setPredictions={setPred} />} */}
+        {/* {tab === "scorers"   && <TopScorersTab />} */}
       </div>
     </div>
   );
