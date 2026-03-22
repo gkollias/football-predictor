@@ -392,7 +392,7 @@ function StTable({ standings, zones = true, compact = false, highlightTeam }) {
 function ZoneLegend() {
   return (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "8px 0 4px" }}>
-      {[{ c: ZONE_COLORS.ch, l: "Championship Playoffs" }, { c: ZONE_COLORS.eu, l: "Europe Playoffs" }, { c: ZONE_COLORS.re, l: "Relegation Playouts" }].map((z) => (
+      {[{ c: ZONE_COLORS.ch, l: "Champ. Playoffs (1–4)" }, { c: ZONE_COLORS.eu, l: "Euro Playoffs (5–8)" }, { c: ZONE_COLORS.re, l: "Rel. Playoffs (9–14, bottom 2 relegated)" }].map((z) => (
         <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--color-text-secondary,#777)" }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: z.c, display: "inline-block" }} />{z.l}
         </span>
@@ -1013,8 +1013,17 @@ function SimulateTab() {
     <div>
       <div style={{ ...S.card, padding: "12px 14px", marginBottom: 14, borderLeft: "3px solid #3d8af7" }}>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> using a Poisson goal model built from this season's attack & defense data. Each team's zone probability is derived from {n.toLocaleString()} random season completions.
+          Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> using a <strong>Poisson goal model</strong>:
+          for each fixture we compute an expected home goals λ<sub>H</sub> = avgHome × homeAttack × awayDef and away λ<sub>A</sub> = avgAway × awayAttack × homeDef,
+          where attack/defense indices are derived from each team's real 2025-26 goal ratios relative to the league mean.
+          Goals are sampled independently from Poisson(λ). Home advantage is implicitly captured by the historical home/away goal averages.
+          Each simulation produces a full final table; probabilities are the fraction of {n.toLocaleString()} runs each team spends in each zone.
         </p>
+        <div style={{ ...S.card, padding: "8px 12px", marginBottom: 10, background: "rgba(224,53,53,0.05)", borderLeft: "3px solid #e03535" }}>
+          <span style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", lineHeight: 1.4 }}>
+            ⚠️ <strong>Note on "Rel. Playoffs" zone:</strong> positions 9–14 enter the <em>Relegation Playouts</em> group — only the <strong>bottom 2</strong> of those 6 teams are actually relegated. A high "Rel. Playoffs %" does <em>not</em> mean actual relegation.
+          </span>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)" }}>Simulations:</span>
@@ -1039,7 +1048,7 @@ function SimulateTab() {
           </div>
           {/* Legend */}
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
-            {[{c:ZONE_COLORS.ch,l:"Championship"},{c:ZONE_COLORS.eu,l:"Europe"},{c:ZONE_COLORS.re,l:"Relegation"}].map(z=>(
+            {[{c:ZONE_COLORS.ch,l:"Champ. Playoffs (1–4)"},{c:ZONE_COLORS.eu,l:"Euro Playoffs (5–8)"},{c:ZONE_COLORS.re,l:"Rel. Playoffs (9–14)"}].map(z=>(
               <span key={z.l} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:"var(--color-text-secondary,#777)"}}>
                 <span style={{width:10,height:10,borderRadius:2,background:z.c,display:"inline-block"}}/>
                 {z.l}
@@ -1075,9 +1084,9 @@ function SimulateTab() {
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
                     {[
-                      { pct: chPct, c: ZONE_COLORS.ch, l: "Ch" },
-                      { pct: euPct, c: ZONE_COLORS.eu, l: "Eu" },
-                      { pct: rePct, c: ZONE_COLORS.re, l: "Re" },
+                      { pct: chPct, c: ZONE_COLORS.ch, l: "Champ." },
+                      { pct: euPct, c: ZONE_COLORS.eu, l: "Euro" },
+                      { pct: rePct, c: ZONE_COLORS.re, l: "Rel. PO" },
                     ].map(z => (
                       <span key={z.l} style={{ fontSize: 11, color: z.pct > 0 ? z.c : "var(--color-text-tertiary,#bbb)", fontWeight: z.pct > 50 ? 700 : 500 }}>
                         {z.l} {z.pct}%
@@ -1089,7 +1098,7 @@ function SimulateTab() {
             })}
           </div>
           <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 8, lineHeight: 1.4 }}>
-            Model: Poisson distribution with team attack/defense strength derived from {MATCHES.filter(m=>m.played).length} played matches. Home advantage reflected in historical goal rates.
+            Calibrated on {MATCHES.filter(m=>m.played).length} played matches. "Rel. Playoffs" = enters the 9th–14th group; only the bottom 2 of that group are actually relegated.
           </p>
         </>
       )}
