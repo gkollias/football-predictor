@@ -1548,7 +1548,7 @@ function TopScorersTab() {
 
 // ─── Tab: Contact ─────────────────────────────────────────────────────────────
 // Uses Formspree (https://formspree.io) — replace FORM_ID with your form's ID
-const FORMSPREE_ID = "YOUR_FORM_ID";
+const FORMSPREE_ID = "xbdzvold";
 
 function ContactTab() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
