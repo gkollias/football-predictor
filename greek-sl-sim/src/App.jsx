@@ -1546,6 +1546,91 @@ function TopScorersTab() {
   );
 }
 
+// ─── Tab: Contact ─────────────────────────────────────────────────────────────
+// Uses Formspree (https://formspree.io) — replace FORM_ID with your form's ID
+const FORMSPREE_ID = "YOUR_FORM_ID";
+
+function ContactTab() {
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [status, setStatus] = useState("idle"); // idle | submitting | success | error
+
+  const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus("submitting");
+    try {
+      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(form),
+      });
+      setStatus(res.ok ? "success" : "error");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const INPUT = {
+    width: "100%", padding: "10px 12px", fontSize: 13,
+    border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8,
+    background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)",
+    boxSizing: "border-box",
+  };
+  const LBL = { fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
+
+  if (status === "success") return (
+    <div style={{ textAlign: "center", padding: "56px 24px" }}>
+      <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary,#222)", marginBottom: 8 }}>Message sent!</div>
+      <div style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>Thanks for the feedback — I'll get back to you soon.</div>
+      <button onClick={() => { setStatus("idle"); setForm({ name: "", email: "", message: "" }); }}
+        style={{ marginTop: 20, padding: "8px 20px", background: "#3d8af7", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+        Send another
+      </button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ ...S.card, padding: "12px 14px", marginBottom: 16, borderLeft: "3px solid #3d8af7" }}>
+        <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: 0, lineHeight: 1.5 }}>
+          Found a bug? Have a suggestion? Want a feature? Drop a message below.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={LBL}>NAME</label>
+            <input name="name" value={form.name} onChange={handleChange} placeholder="Your name"
+              required style={INPUT} />
+          </div>
+          <div>
+            <label style={LBL}>EMAIL</label>
+            <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="your@email.com"
+              required style={INPUT} />
+          </div>
+        </div>
+        <div>
+          <label style={LBL}>MESSAGE</label>
+          <textarea name="message" value={form.message} onChange={handleChange} placeholder="Your message…"
+            required rows={5}
+            style={{ ...INPUT, resize: "vertical", lineHeight: 1.5 }} />
+        </div>
+        {status === "error" && (
+          <div style={{ fontSize: 12, color: "#e03535", padding: "8px 12px", background: "rgba(224,53,53,0.08)", borderRadius: 8 }}>
+            Something went wrong. Please try again or email directly.
+          </div>
+        )}
+        <button type="submit" disabled={status === "submitting"}
+          style={{ padding: "10px 24px", background: status === "submitting" ? "#aaa" : "#3d8af7", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: status === "submitting" ? "default" : "pointer", alignSelf: "flex-start" }}>
+          {status === "submitting" ? "Sending…" : "Send message"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ─── Scenarios placeholder (tab disabled pending rewrite) ────────────────────
 function ScenariosPlaceholder() {
   return (
@@ -1570,10 +1655,11 @@ export default function App() {
     { id: "fixtures",  label: "Fixtures" },
     { id: "playoffs",  label: "Playoffs" },
     { id: "simulate",  label: "Simulate" },
-    { id: "scenarios", label: "Scenarios" },
     { id: "timeline",  label: "Timeline" },
-    // { id: "predict",  label: "Predict" },   // removed: no unplayed regular season matches
-    // { id: "scorers",  label: "Scorers" },   // removed: incomplete goalscorer data
+    { id: "contact",   label: "Contact" },
+    // { id: "scenarios", label: "Scenarios" }, // disabled: pending playoff rewrite
+    // { id: "predict",   label: "Predict" },   // disabled: no unplayed regular season matches
+    // { id: "scorers",   label: "Scorers" },   // disabled: incomplete goalscorer data
   ];
 
   return (
@@ -1608,10 +1694,11 @@ export default function App() {
         {tab === "fixtures"   && <FixturesTab />}
         {tab === "playoffs"   && <PlayoffsTab />}
         {tab === "simulate"   && <SimulateTab />}
-        {tab === "scenarios"  && <ScenariosPlaceholder />}
         {tab === "timeline"   && <MinutesTab />}
-        {/* {tab === "predict"   && <PredictTab predictions={pred} setPredictions={setPred} />} */}
-        {/* {tab === "scorers"   && <TopScorersTab />} */}
+        {tab === "contact"    && <ContactTab />}
+        {/* {tab === "scenarios"  && <ScenariosPlaceholder />} */}
+        {/* {tab === "predict"    && <PredictTab predictions={pred} setPredictions={setPred} />} */}
+        {/* {tab === "scorers"    && <TopScorersTab />} */}
       </div>
     </div>
   );
