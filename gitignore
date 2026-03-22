@@ -1,0 +1,24 @@
+# Generated data (re-generate with scraper)
+goals_progress_s365.json
+goals_data.json
+goals_for_react.txt
+
+# Debug outputs
+debug_page.html
+debug_structure.txt
+debug_events.txt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node (if running locally)
+node_modules/
+dist/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
