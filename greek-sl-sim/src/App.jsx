@@ -856,162 +856,243 @@ function PredictTab({ predictions, setPredictions }) {
 // ─── Tab: Scenarios ───────────────────────────────────────────────────────────
 function ScenariosTab() {
   const [team, setTeam] = useState("pao");
-  const [target, setTarget] = useState(1);
+  const [target, setTarget] = useState(1);       // regular-season position target
+  const [groupTarget, setGroupTarget] = useState(1); // position within playoff group
   const [showAllFixtures, setShowAllFixtures] = useState(false);
   const st = useMemo(() => calcStandings(MATCHES.filter(mm => mm.played)), []);
-  const projPostSeason = useMemo(() => generatePostSeason(st), []);
+  const { phases: poPhases, fixtures: poFixtures } = useMemo(() => generatePostSeason(st), []);
+  const regSeasonDone = MATCHES.filter(m => !m.played).length === 0;
+  const ord = (n) => ["st","nd","rd"][n-1] || "th";
+
+  // ── Playoff group data ──────────────────────────────────────────────────────
+  const teamPhase = poPhases.find(ph => ph.teams.includes(team));
+  const phaseColor = teamPhase?.id === "champ" ? ZONE_COLORS.ch : teamPhase?.id === "europe" ? ZONE_COLORS.eu : ZONE_COLORS.re;
+  const allPhaseFixtures = teamPhase ? poFixtures.filter(fx => fx.phase === teamPhase.id) : [];
+  const teamFixtures    = allPhaseFixtures.filter(fx => fx.homeTeamId === team || fx.awayTeamId === team);
+  const otherFixtures   = allPhaseFixtures.filter(fx => fx.homeTeamId !== team && fx.awayTeamId !== team);
+  const hasResult = (fx) => { const r = PLAYOFF_RESULTS[fx.id]; return r && r.h !== null && r.h !== undefined; };
+
+  // Live playoff group standings (carry pts + any entered results)
+  const groupStandings = (() => {
+    if (!teamPhase) return [];
+    const base = {};
+    teamPhase.teams.forEach(id => {
+      const s = st.find(r => r.id === id);
+      const cp = teamPhase.carry === 0.5
+        ? (teamPhase.rounding === "ceil" ? Math.ceil((s?.pts||0)/2) : Math.floor((s?.pts||0)/2))
+        : (s?.pts || 0);
+      base[id] = { id, carryPts: cp, pts: cp, w: 0, d: 0, l: 0, gf: 0, ga: 0 };
+    });
+    allPhaseFixtures.forEach(fx => {
+      const r = PLAYOFF_RESULTS[fx.id];
+      if (!r || r.h === null || r.h === undefined) return;
+      const h = base[fx.homeTeamId], a = base[fx.awayTeamId];
+      if (!h || !a) return;
+      h.gf += r.h; h.ga += r.a; a.gf += r.a; a.ga += r.h;
+      if (r.h > r.a)      { h.w++; h.pts += 3; a.l++; }
+      else if (r.h < r.a) { a.w++; a.pts += 3; h.l++; }
+      else                { h.d++; a.d++; h.pts++; a.pts++; }
+    });
+    return Object.values(base).sort((a, b) => b.pts - a.pts || (b.gf-b.ga)-(a.gf-a.ga) || b.gf-a.gf || b.w-a.w);
+  })();
+  const groupSize      = teamPhase?.teams.length || 4;
+  const teamGrSt       = groupStandings.find(s => s.id === team);
+  const groupPos       = groupStandings.findIndex(s => s.id === team) + 1;
+  const teamGrPts      = teamGrSt?.pts || 0;
+  const remGroupFix    = teamFixtures.filter(fx => !hasResult(fx));
+  const maxGrPts       = teamGrPts + remGroupFix.length * 3;
+  const othersGrSorted = groupStandings.filter(s => s.id !== team).sort((a, b) => b.pts - a.pts);
+  const cutoffGr       = othersGrSorted[groupTarget - 1];
+  const needGr         = Math.max(0, (cutoffGr?.pts ?? 0) - teamGrPts + 1);
+  const lockedAboveGr  = othersGrSorted.filter(s => s.pts > maxGrPts).length;
+  const impossibleGr   = lockedAboveGr >= groupTarget;
+  const alreadyThereGr = !impossibleGr && needGr === 0;
+
+  const groupOutcomeLabel = (phase, p) => {
+    if (!phase) return "";
+    if (phase.id === "champ")  return p === 1 ? "Champion 🏆" : p <= 3 ? "European spot" : "Conference League";
+    if (phase.id === "europe") return p === 1 ? "UECL qualifying" : "No European spot";
+    return p <= 4 ? "Safe" : "Relegated";
+  };
+
+  // ── Regular season scenario data (used when !regSeasonDone) ─────────────────
   const pos = st.findIndex(s => s.id === team) + 1;
   const pts = st.find(s => s.id === team)?.pts || 0;
   const rem = MATCHES.filter(mm => !mm.played && (mm.homeTeamId === team || mm.awayTeamId === team));
   const maxP = pts + rem.length * 3;
-  const ord = (n) => ["st","nd","rd"][n-1] || "th";
-
-  // Correct impossibility and points-needed calculation:
-  // In the best case for this team: it wins all remaining games (maxP pts),
-  // AND every other team loses all remaining (their pts stay at current minimum).
-  // Sort others by their minimum possible pts (descending).
   const othersSorted = st.filter(s => s.id !== team).sort((a, b) => b.pts - a.pts);
-  // The team that would be exactly at position `target` among others if team reaches target:
-  // team needs to beat the team at rank `target` among others (0-indexed: target-1).
-  const cutoff = othersSorted[target - 1];       // the Kth-highest other team
-  const cutoffPts = cutoff?.pts ?? 0;
-  const need = Math.max(0, cutoffPts - pts + 1); // pts needed to exceed the cutoff team
-  // Teams that can NEVER be overtaken (their current pts > team's max)
+  const cutoff = othersSorted[target - 1];
+  const need = Math.max(0, (cutoff?.pts ?? 0) - pts + 1);
   const lockedAbove = othersSorted.filter(s => s.pts > maxP).length;
-  const impossible = lockedAbove >= target;       // at least `target` teams always above
+  const impossible = lockedAbove >= target;
   const alreadyThere = !impossible && need === 0;
 
-  // Playoff path based on target regular-season position
-  const PLAYOFF_PATHS = {
-    champ: {
-      label: "Championship Playoffs", color: "#3d8af7",
-      range: "1st–4th",
-      rules: "Carry 100% of regular season pts · Play each other team H&A (6 games)",
-      outcomes: [
-        { label: "Champion", color: "#FFB800", desc: "1st in group" },
-        { label: "European spot (UCL/UEL)", color: "#3d8af7", desc: "2nd–3rd in group" },
-        { label: "Conference League", color: "#7b9ef0", desc: "4th in group" },
-      ],
-    },
-    europe: {
-      label: "Europe Playoffs", color: "#00985f",
-      range: "5th–8th",
-      rules: "Carry 50% of regular season pts (rounded up) · Play each other team H&A (6 games)",
-      outcomes: [
-        { label: "European — UECL qualifying", color: "#3d8af7", desc: "1st in group" },
-        { label: "No European spot",           color: "#9e9e9e", desc: "2nd–4th in group" },
-      ],
-    },
-    releg: {
-      label: "Relegation Playouts", color: "#e03535",
-      range: "9th–14th",
-      rules: "Carry 100% of regular season pts · Play each other team H&A (10 games)",
-      outcomes: [
-        { label: "Safe", color: "#00985f", desc: "1st–4th in group" },
-        { label: "Relegated", color: "#e03535", desc: "5th–6th in group" },
-      ],
-    },
-  };
-  const pathKey = target <= 4 ? "champ" : target <= 8 ? "europe" : "releg";
-  const path = PLAYOFF_PATHS[pathKey];
-
-  // MC outcome probabilities for this team (from lastMCResult if available)
+  // ── MC simulation outcome probabilities ─────────────────────────────────────
   const mc = lastMCResult;
   const oc = mc ? mc.outcomeCounts[team] : null;
   const mcPct = (v) => Math.round(v / mc.N * 100);
+  const MC_OUTCOMES = [
+    { key: "champion",  label: "Champion",            color: "#FFB800" },
+    { key: "european",  label: "European (2nd–5th)",  color: "#3d8af7" },
+    { key: "euPO",      label: "Europe PO (6th–8th)", color: "#00985f" },
+    { key: "safe",      label: "Safe (9th–12th)",     color: "#9e9e9e" },
+    { key: "relegated", label: "Relegated",           color: "#e03535" },
+  ];
+
+  const SELECT_STYLE = { width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" };
+  const LBL_STYLE    = { fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
 
   return (
     <div>
+      {/* ── Team + Target selectors ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>MY TEAM</label>
-          <select value={team} onChange={e => setTeam(e.target.value)}
-            style={{ width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }}>
+          <label style={LBL_STYLE}>MY TEAM</label>
+          <select value={team} onChange={e => { setTeam(e.target.value); setGroupTarget(1); setTarget(1); }} style={SELECT_STYLE}>
             {LEAGUE.teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>TARGET REGULAR SEASON POSITION</label>
-          <select value={target} onChange={e => setTarget(parseInt(e.target.value))}
-            style={{ width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }}>
-            {Array.from({ length: 14 }, (_, i) => (
-              <option key={i+1} value={i+1}>{i+1}{ord(i+1)} place</option>
-            ))}
-          </select>
+          <label style={LBL_STYLE}>{regSeasonDone ? "TARGET IN PLAYOFF GROUP" : "TARGET REGULAR SEASON POSITION"}</label>
+          {regSeasonDone ? (
+            <select value={groupTarget} onChange={e => setGroupTarget(parseInt(e.target.value))} style={SELECT_STYLE}>
+              {Array.from({ length: groupSize }, (_, i) => (
+                <option key={i+1} value={i+1}>{i+1}{ord(i+1)} in group — {groupOutcomeLabel(teamPhase, i+1)}</option>
+              ))}
+            </select>
+          ) : (
+            <select value={target} onChange={e => setTarget(parseInt(e.target.value))} style={SELECT_STYLE}>
+              {Array.from({ length: 14 }, (_, i) => (
+                <option key={i+1} value={i+1}>{i+1}{ord(i+1)} place</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
-        {[
-          { l: "Current", v: `${pos}${ord(pos)}`, c: "#3d8af7" },
-          { l: "Points", v: pts },
-          { l: "Max pts", v: maxP },
-          { l: "Games left", v: rem.length },
-        ].map(c => (
-          <div key={c.l} style={{ ...S.card, padding: "8px 10px" }}>
-            <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${impossible ? "#e03535" : alreadyThere ? "#00985f" : "#3d8af7"}` }}>
-        {impossible ? (
-          <>
-            <div style={{ color: "#e03535", fontSize: 13, fontWeight: 600, marginBottom: pos <= 4 && target <= 4 ? 6 : 0 }}>
-              Mathematically impossible to finish {target}{ord(target)} in the regular season.
+      {regSeasonDone ? (
+        /* ══════════════════ PLAYOFF MODE ══════════════════ */
+        <>
+          {/* Group standings mini-table */}
+          <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${phaseColor}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{teamPhase?.name}</span>
+              <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "var(--color-background-secondary,#f5f5f5)", padding: "2px 8px", borderRadius: 8 }}>{teamPhase?.label}</span>
             </div>
-            {pos <= 4 && target <= 4 && (
-              <div style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", lineHeight: 1.5 }}>
-                Already in the Championship Playoffs (top 4) — the exact regular season rank among the top 4 doesn't determine who's Champion. The Champion is decided in the playoff group, where all four teams can win it.
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--color-border-tertiary,#eee)" }}>
+                  {["#","Team","Carry","Playoff","Total"].map(h => (
+                    <th key={h} style={{ textAlign: h==="Team"?"left":"center", padding: "4px 6px", fontSize: 10, fontWeight: 600, color: "var(--color-text-secondary,#888)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {groupStandings.map((s, i) => {
+                  const tt = T(s.id);
+                  const isMe = s.id === team;
+                  const playoffPts = s.pts - s.carryPts;
+                  return (
+                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border-tertiary,#f0f0f0)", background: isMe ? "rgba(61,138,247,0.07)" : "transparent" }}>
+                      <td style={{ textAlign: "center", padding: "5px 4px", fontSize: 11, color: "#999" }}>{i+1}</td>
+                      <td style={{ padding: "5px 6px", fontWeight: isMe ? 700 : 500 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <span style={S.teamDot(tt?.color)} />
+                          <span>{tt?.short}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "5px 4px", color: "#999" }}>{s.carryPts}</td>
+                      <td style={{ textAlign: "center", padding: "5px 4px", color: playoffPts>0?"#00985f":"#999" }}>{playoffPts>0?"+":""}{playoffPts}</td>
+                      <td style={{ textAlign: "center", padding: "5px 4px", fontWeight: 700, color: isMe?"#3d8af7":"var(--color-text-primary,#222)" }}>{s.pts}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+            {[
+              { l: "Group rank",   v: `${groupPos}${ord(groupPos)}`, c: "#3d8af7" },
+              { l: "Total pts",    v: teamGrPts },
+              { l: "Max pts",      v: maxGrPts },
+              { l: "Games left",   v: remGroupFix.length },
+            ].map(c => (
+              <div key={c.l} style={{ ...S.card, padding: "8px 10px" }}>
+                <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Analysis card */}
+          <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${impossibleGr?"#e03535":alreadyThereGr?"#00985f":"#3d8af7"}` }}>
+            {impossibleGr ? (
+              <div style={{ color: "#e03535", fontSize: 13, fontWeight: 600 }}>
+                Mathematically impossible to finish {groupTarget}{ord(groupTarget)} in the group.
+              </div>
+            ) : alreadyThereGr ? (
+              <div style={{ color: "#00985f", fontSize: 13, fontWeight: 600 }}>
+                Currently {groupPos}{ord(groupPos)} in the group — {groupOutcomeLabel(teamPhase, groupPos)}.
+              </div>
+            ) : (
+              <div style={{ fontSize: 13 }}>
+                Need <strong style={{ color: "#3d8af7", fontSize: 15 }}>{needGr} more pts</strong> in the playoffs — at least <strong>{Math.ceil(needGr/3)} win{Math.ceil(needGr/3)!==1?"s":""}</strong> from {remGroupFix.length} remaining group game{remGroupFix.length!==1?"s":""} to reach <strong>{groupTarget}{ord(groupTarget)} ({groupOutcomeLabel(teamPhase, groupTarget)})</strong>.
               </div>
             )}
-          </>
-        ) : alreadyThere ? (
-          <div style={{ color: "#00985f", fontSize: 13, fontWeight: 600 }}>
-            Currently at {pos}{ord(pos)} — already at or above {target}{ord(target)} place.
           </div>
-        ) : (
-          <div style={{ fontSize: 13 }}>
-            Need <strong style={{ color: "#3d8af7", fontSize: 15 }}>{need} pts</strong> — that's at least <strong>{Math.ceil(need / 3)} win{Math.ceil(need/3)!==1?"s":""}</strong> from {rem.length} remaining game{rem.length!==1?"s":""} to reach {target}{ord(target)}.
+        </>
+      ) : (
+        /* ══════════════════ REGULAR SEASON MODE ══════════════════ */
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+            {[
+              { l: "Current",    v: `${pos}${ord(pos)}`, c: "#3d8af7" },
+              { l: "Points",     v: pts },
+              { l: "Max pts",    v: maxP },
+              { l: "Games left", v: rem.length },
+            ].map(c => (
+              <div key={c.l} style={{ ...S.card, padding: "8px 10px" }}>
+                <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+          <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${impossible?"#e03535":alreadyThere?"#00985f":"#3d8af7"}` }}>
+            {impossible ? (
+              <div style={{ color: "#e03535", fontSize: 13, fontWeight: 600 }}>
+                Mathematically impossible to finish {target}{ord(target)} in the regular season.
+              </div>
+            ) : alreadyThere ? (
+              <div style={{ color: "#00985f", fontSize: 13, fontWeight: 600 }}>
+                Currently at {pos}{ord(pos)} — already at or above {target}{ord(target)} place.
+              </div>
+            ) : (
+              <div style={{ fontSize: 13 }}>
+                Need <strong style={{ color: "#3d8af7", fontSize: 15 }}>{need} pts</strong> — at least <strong>{Math.ceil(need/3)} win{Math.ceil(need/3)!==1?"s":""}</strong> from {rem.length} remaining game{rem.length!==1?"s":""} to reach {target}{ord(target)}.
+              </div>
+            )}
+          </div>
+          {rem.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING REGULAR SEASON FIXTURES</div>
+              <div style={{ ...S.card, marginBottom: 14 }}>
+                {rem.map(mm => <MatchCard key={mm.id} match={mm} showGoals={false} />)}
+              </div>
+            </>
+          )}
+        </>
+      )}
 
-      {/* Playoff path for target position */}
-      <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${path.color}` }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>PLAYOFF PATH</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: path.color }}>{path.label}</span>
-          <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "var(--color-background-secondary,#f5f5f5)", padding: "2px 8px", borderRadius: 8 }}>{path.range}</span>
-        </div>
-        <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", marginBottom: 10 }}>{path.rules}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>POSSIBLE FINAL OUTCOMES</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {path.outcomes.map(o => (
-            <div key={o.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: o.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: o.color }}>{o.label}</span>
-              <span style={{ fontSize: 11, color: "var(--color-text-tertiary,#aaa)" }}>{o.desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* MC simulation outcome probabilities */}
+      {/* ── MC simulation outcome probabilities ── */}
       {oc ? (
         <div style={{ ...S.card, padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 10 }}>
             SIMULATED FINAL OUTCOMES — {T(team)?.name}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[
-              { key: "champion",  label: "Champion",             color: "#FFB800" },
-              { key: "european",  label: "European (2nd–5th)",   color: "#3d8af7" },
-              { key: "euPO",      label: "Europe PO (6th–8th)",  color: "#00985f" },
-              { key: "safe",      label: "Safe (9th–12th)",      color: "#9e9e9e" },
-              { key: "relegated", label: "Relegated",            color: "#e03535" },
-            ].map(o => {
+            {MC_OUTCOMES.map(o => {
               const p = mcPct(oc[o.key]);
               if (p === 0) return null;
               return (
@@ -1026,77 +1107,46 @@ function ScenariosTab() {
             })}
           </div>
           <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", margin: "8px 0 0", lineHeight: 1.4 }}>
-            Based on {mc.N.toLocaleString()} simulations from the Simulate tab.
+            Based on {mc.N.toLocaleString()} simulations. Run or re-run from the <strong>Simulate</strong> tab.
           </p>
         </div>
       ) : (
         <div style={{ ...S.card, padding: 14, marginBottom: 14, color: "var(--color-text-secondary,#888)", fontSize: 12 }}>
-          Run the simulation in the <strong>Simulate</strong> tab to see full outcome probabilities here.
+          Run the simulation in the <strong>Simulate</strong> tab to see final outcome probabilities here.
         </div>
       )}
 
-      {rem.length > 0 && (
+      {/* ── Playoff fixtures ── */}
+      {teamPhase && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING REGULAR SEASON FIXTURES</div>
-          <div style={{ ...S.card, marginBottom: 14 }}>
-            {rem.map(mm => <MatchCard key={mm.id} match={mm} showGoals={false} />)}
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>
+            {regSeasonDone ? "PLAYOFF FIXTURES" : "PROJECTED PLAYOFF FIXTURES"}
           </div>
-        </>
-      )}
-
-      {/* Projected playoff fixtures based on current standings */}
-      {(() => {
-        const teamPhase = projPostSeason.phases.find(ph => ph.teams.includes(team));
-        if (!teamPhase) return null;
-        const allPhaseFixtures = projPostSeason.fixtures.filter(fx => fx.phase === teamPhase.id);
-        const teamFixtures = allPhaseFixtures.filter(fx => fx.homeTeamId === team || fx.awayTeamId === team);
-        const otherFixtures = allPhaseFixtures.filter(fx => fx.homeTeamId !== team && fx.awayTeamId !== team);
-        const phaseColor = teamPhase.id === "champ" ? ZONE_COLORS.ch : teamPhase.id === "europe" ? ZONE_COLORS.eu : ZONE_COLORS.re;
-        const regSeasonDone = MATCHES.filter(m => !m.played).length === 0;
-        return (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>
-              {regSeasonDone ? "PLAYOFF FIXTURES" : "PROJECTED PLAYOFF FIXTURES"}
-            </div>
-            <div style={{ ...S.card, padding: 14, marginBottom: 8, borderLeft: `4px solid ${phaseColor}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{teamPhase.name}</span>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", marginBottom: 4 }}>
-                {teamPhase.teams.map(id => T(id)?.name || id).join(" · ")}
-              </div>
-              {!regSeasonDone && (
-                <div style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginBottom: 8 }}>
-                  Based on current standings — may change when MD26 is played
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>
+            {T(team)?.name}'s fixtures ({teamFixtures.length} games)
+          </div>
+          <div style={{ ...S.card, marginBottom: 10 }}>
+            {teamFixtures.map(fx => <MatchCard key={fx.id} match={fx} showGoals={false} />)}
+          </div>
+          {otherFixtures.length > 0 && (
+            <>
+              <button onClick={() => setShowAllFixtures(v => !v)}
+                style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 6 }}>
+                {showAllFixtures ? "▾ Hide" : "▸ Show"} all {teamPhase.name} fixtures ({allPhaseFixtures.length} total)
+              </button>
+              {showAllFixtures && (
+                <div style={{ ...S.card, marginBottom: 14 }}>
+                  {allPhaseFixtures.map(fx => (
+                    <div key={fx.id} style={{ opacity: (fx.homeTeamId === team || fx.awayTeamId === team) ? 1 : 0.55 }}>
+                      <MatchCard match={fx} showGoals={false} />
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>
-              {T(team)?.name}'s fixtures ({teamFixtures.length} games)
-            </div>
-            <div style={{ ...S.card, marginBottom: 10 }}>
-              {teamFixtures.map(fx => <MatchCard key={fx.id} match={fx} showGoals={false} />)}
-            </div>
-            {otherFixtures.length > 0 && (
-              <>
-                <button onClick={() => setShowAllFixtures(v => !v)}
-                  style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 6 }}>
-                  {showAllFixtures ? "▾ Hide" : "▸ Show"} all {teamPhase.name} fixtures ({allPhaseFixtures.length} total)
-                </button>
-                {showAllFixtures && (
-                  <div style={{ ...S.card, marginBottom: 14 }}>
-                    {allPhaseFixtures.map(fx => (
-                      <div key={fx.id} style={{ opacity: (fx.homeTeamId === team || fx.awayTeamId === team) ? 1 : 0.55 }}>
-                        <MatchCard match={fx} showGoals={false} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        );
-      })()}
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1168,7 +1218,8 @@ let lastMCResult = null;
 function runMonteCarlo(N = 10000) {
   const played = MATCHES.filter(m => m.played);
   const unplayed = MATCHES.filter(m => !m.played);
-  if (unplayed.length === 0) { lastMCResult = null; return null; }
+  // Run even when regular season is complete — playoffs still need simulating
+  if (played.length === 0) { lastMCResult = null; return null; }
   const model = buildStrengthModel(played);
   // posCounts tracks FINAL positions (1-14) after playoffs, not just regular season
   const posCounts = {}, ptsSums = {}, outcomeCounts = {};
@@ -1256,10 +1307,10 @@ function SimulateTab() {
     <div>
       <div style={{ ...S.card, padding: "12px 14px", marginBottom: 14, borderLeft: "3px solid #3d8af7" }}>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a <strong>Poisson goal model</strong>.
-          For each fixture: λ<sub>H</sub> = avgHome × homeAttack × awayDef, λ<sub>A</sub> = avgAway × awayAttack × homeDef.
-          Playoff groups use the real carry-over rules (100% pts for Champ/Releg groups, 50% rounded up for Europe group).
-          Probabilities shown are <strong>final season outcomes</strong> after all games including playoffs.
+          {unplayed.length === 0
+            ? <>Regular season is complete. Simulating all <strong>three playoff phases</strong> from final standings using a <strong>Poisson goal model</strong>. Carry-over rules: 100% pts for Championship &amp; Relegation groups, 50% (rounded up) for Europe group. Probabilities are <strong>final season outcomes</strong>.</>
+            : <>Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a <strong>Poisson goal model</strong>. λ<sub>H</sub> = avgHome × homeAttack × awayDef; λ<sub>A</sub> = avgAway × awayAttack × homeDef. Carry-over rules: 100% pts for Champ/Releg groups, 50% rounded up for Europe group. Probabilities are <strong>final season outcomes</strong>.</>
+          }
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1291,7 +1342,7 @@ function SimulateTab() {
       </div>
 
       {sims === null && !running && (
-        <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>All matches played — no simulation needed.</div>
+        <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>Click "Run simulation" to simulate the playoff phases.</div>
       )}
 
       {sims && (
