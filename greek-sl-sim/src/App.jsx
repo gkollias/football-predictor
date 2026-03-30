@@ -220,37 +220,51 @@ m(26,"aris","ofi",0,2,[]),
 // ─── Playoff state (stored outside component so it persists across tab switches)
 const PLAYOFF_RESULTS = {};
 
-// ─── Post-season generator ────────────────────────────────────────────────────
-function generatePostSeason(standings) {
-  const phases = [
-    { id: "champ",  name: "Championship Playoffs", teams: standings.slice(0,4).map(s=>s.id),  carry: 1.0, label: "1st–4th · carry 100% pts · 6 games (H&A)" },
-    { id: "europe", name: "Europe Playoffs",        teams: standings.slice(4,8).map(s=>s.id),  carry: 0.5, rounding: "ceil", label: "5th–8th · carry 50% pts (rounded up) · 6 games" },
-    { id: "releg",  name: "Relegation Playouts",    teams: standings.slice(8,14).map(s=>s.id), carry: 1.0, label: "9th–14th · carry 100% pts · 10 games · Bottom 2 relegated" },
-  ];
-  const fixtures = [];
-  let nextId = 2000;
-  phases.forEach(phase => {
-    const t = phase.teams;
-    for (let round = 0; round < 2; round++) {
-      for (let i = 0; i < t.length; i++) {
-        for (let j = i + 1; j < t.length; j++) {
-          const [h, a] = round === 0 ? [t[i], t[j]] : [t[j], t[i]];
-          fixtures.push({
-            id: nextId++, phase: phase.id, homeTeamId: h, awayTeamId: a,
-            played: false, homeScore: null, awayScore: null, goals: [],
-            phaseName: phase.name, phaseCarry: phase.carry, phaseRounding: phase.rounding,
-          });
-        }
-      }
-    }
-  });
-  return { phases, fixtures };
+// ─── Post-season: real drawn fixtures (draw held March 24, 2026) ──────────────
+const PLAYOFF_PHASES = [
+  { id: "champ",  name: "Championship Playoffs", teams: ["oly","paok","aek","pao"], carry: 1.0, label: "1st–4th · carry 100% pts · 6 games (H&A)" },
+  { id: "europe", name: "Europe Playoffs",        teams: ["aris","lev","volos","ofi"], carry: 0.5, rounding: "ceil", label: "5th–8th · carry 50% pts (rounded up) · 6 games" },
+  { id: "releg",  name: "Relegation Playouts",    teams: ["kif","ast","ael","pans","pane","atro"], carry: 1.0, label: "9th–14th · carry 100% pts · 10 games · Bottom 2 relegated" },
+];
+const pf = (id, phase, md, h, a, date) => ({
+  id, phase, matchday: md, homeTeamId: h, awayTeamId: a, date,
+  played: false, homeScore: null, awayScore: null, goals: [],
+});
+const PLAYOFF_FIXTURES = [
+  // ── Championship Playoffs ──
+  pf(2001,"champ",1,"paok","pao","2026-04-05"), pf(2002,"champ",1,"oly","aek","2026-04-05"),
+  pf(2003,"champ",2,"aek","paok","2026-04-19"),  pf(2004,"champ",2,"pao","oly","2026-04-19"),
+  pf(2005,"champ",3,"paok","oly","2026-05-03"),  pf(2006,"champ",3,"pao","aek","2026-05-03"),
+  pf(2007,"champ",4,"aek","pao","2026-05-10"),   pf(2008,"champ",4,"oly","paok","2026-05-10"),
+  pf(2009,"champ",5,"oly","pao","2026-05-13"),   pf(2010,"champ",5,"paok","aek","2026-05-13"),
+  pf(2011,"champ",6,"aek","oly","2026-05-17"),   pf(2012,"champ",6,"pao","paok","2026-05-17"),
+  // ── Europe Playoffs ──
+  pf(2101,"europe",1,"lev","aris","2026-04-05"),  pf(2102,"europe",1,"volos","ofi","2026-04-05"),
+  pf(2103,"europe",2,"aris","volos","2026-04-19"), pf(2104,"europe",2,"ofi","lev","2026-04-19"),
+  pf(2105,"europe",3,"lev","volos","2026-05-03"), pf(2106,"europe",3,"ofi","aris","2026-05-03"),
+  pf(2107,"europe",4,"aris","ofi","2026-05-10"),  pf(2108,"europe",4,"volos","lev","2026-05-10"),
+  pf(2109,"europe",5,"volos","aris","2026-05-13"), pf(2110,"europe",5,"lev","ofi","2026-05-13"),
+  pf(2111,"europe",6,"aris","lev","2026-05-17"),  pf(2112,"europe",6,"ofi","volos","2026-05-17"),
+  // ── Relegation Playouts ──
+  pf(2201,"releg",1,"kif","pans","2026-04-04"),  pf(2202,"releg",1,"ast","ael","2026-04-04"),  pf(2203,"releg",1,"pane","atro","2026-04-04"),
+  pf(2204,"releg",2,"ael","pane","2026-04-08"),  pf(2205,"releg",2,"pans","ast","2026-04-08"), pf(2206,"releg",2,"atro","kif","2026-04-08"),
+  pf(2207,"releg",3,"kif","ast","2026-04-18"),   pf(2208,"releg",3,"atro","ael","2026-04-18"), pf(2209,"releg",3,"pane","pans","2026-04-18"),
+  pf(2210,"releg",4,"pans","atro","2026-04-22"), pf(2211,"releg",4,"ael","kif","2026-04-22"),  pf(2212,"releg",4,"ast","pane","2026-04-22"),
+  pf(2213,"releg",5,"kif","pane","2026-04-26"),  pf(2214,"releg",5,"atro","ast","2026-04-26"), pf(2215,"releg",5,"ael","pans","2026-04-26"),
+  pf(2216,"releg",6,"pane","kif","2026-05-02"),  pf(2217,"releg",6,"pans","ael","2026-05-02"), pf(2218,"releg",6,"ast","atro","2026-05-02"),
+  pf(2219,"releg",7,"pans","kif","2026-05-09"),  pf(2220,"releg",7,"ael","ast","2026-05-09"),  pf(2221,"releg",7,"atro","pane","2026-05-09"),
+  pf(2222,"releg",8,"ast","pans","2026-05-12"),  pf(2223,"releg",8,"kif","atro","2026-05-12"), pf(2224,"releg",8,"pane","ael","2026-05-12"),
+  pf(2225,"releg",9,"ast","kif","2026-05-16"),   pf(2226,"releg",9,"ael","atro","2026-05-16"), pf(2227,"releg",9,"pans","pane","2026-05-16"),
+  pf(2228,"releg",10,"atro","pans","2026-05-21"), pf(2229,"releg",10,"kif","ael","2026-05-21"), pf(2230,"releg",10,"pane","ast","2026-05-21"),
+];
+function generatePostSeason() {
+  return { phases: PLAYOFF_PHASES, fixtures: PLAYOFF_FIXTURES };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const T = (id) => LEAGUE.teams.find((t) => t.id === id);
 
-const ZONE_COLORS = { ch: "#3d8af7", eu: "#00985f", re: "#e03535" };
+const ZONE_COLORS = { ch: "var(--accent)", eu: "var(--green)", re: "var(--red)" };
 
 function calcStandings(ms) {
   const t = {};
@@ -289,24 +303,57 @@ function calcAtMinute(ms, minute) {
 // ─── Style tokens ─────────────────────────────────────────────────────────────
 const S = {
   card: {
-    background: "var(--color-background-secondary,#f8f9fa)",
-    border: "1px solid var(--color-border-tertiary,#e9ecef)",
-    borderRadius: 10,
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border-subtle)",
+    borderRadius: 12,
     overflow: "hidden",
+    boxShadow: "var(--shadow-card)",
   },
   pill: (active) => ({
-    padding: "4px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
-    background: active ? "#3d8af7" : "transparent",
-    color: active ? "#fff" : "var(--color-text-secondary,#666)",
-    border: active ? "none" : "1px solid var(--color-border-tertiary,#ddd)",
+    padding: "6px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+    background: active ? "var(--accent)" : "var(--bg-elevated)",
+    color: active ? "#fff" : "var(--text-secondary)",
+    border: active ? "1px solid transparent" : "1px solid var(--border-primary)",
     fontWeight: active ? 600 : 400,
+    transition: "all var(--transition-fast)",
+    boxShadow: active ? "0 0 8px var(--accent-glow)" : "none",
   }),
   teamDot: (color, size = 8) => ({
-    display: "inline-block", width: size, height: size,
-    borderRadius: 3, background: color || "#aaa",
-    marginRight: 5, verticalAlign: "middle", flexShrink: 0,
+    display: "inline-block", width: 3, height: size + 4,
+    borderRadius: 2, background: color || "var(--gray)",
+    flexShrink: 0,
   }),
+  sectionTitle: {
+    fontSize: 11, fontWeight: 700, letterSpacing: 1,
+    textTransform: "uppercase", color: "var(--text-secondary)",
+    marginBottom: 10,
+  },
+  scoreBox: {
+    background: "var(--score-bg)", borderRadius: 8,
+    padding: "4px 10px", fontWeight: 800, fontSize: 16,
+    letterSpacing: 1.5, fontVariantNumeric: "tabular-nums",
+    color: "var(--text-primary)", display: "inline-block",
+  },
+  statCard: {
+    background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)",
+    borderRadius: 12, padding: "12px", boxShadow: "var(--shadow-card)",
+  },
 };
+
+// ─── Form helper (last N results for a team) ────────────────────────────────
+function getTeamForm(teamId, count = 5) {
+  const results = [];
+  const played = MATCHES.filter(m => m.played).sort((a, b) => b.matchday - a.matchday);
+  for (const m of played) {
+    if (results.length >= count) break;
+    if (m.homeTeamId === teamId) {
+      results.push(m.homeScore > m.awayScore ? "W" : m.homeScore < m.awayScore ? "L" : "D");
+    } else if (m.awayTeamId === teamId) {
+      results.push(m.awayScore > m.homeScore ? "W" : m.awayScore < m.homeScore ? "L" : "D");
+    }
+  }
+  return results.reverse();
+}
 
 // ─── Dual-handle slider ───────────────────────────────────────────────────────
 function DualSlider({ min, max, low, high, onChange, maxSel }) {
@@ -329,27 +376,32 @@ function DualSlider({ min, max, low, high, onChange, maxSel }) {
 
   return (
     <div style={{ position: "relative", height: 32, margin: "0 8px", userSelect: "none" }}>
-      <div ref={ref} style={{ position: "absolute", top: 14, left: 0, right: 0, height: 4, background: "var(--color-border-tertiary,#e0e0e0)", borderRadius: 2 }} />
-      <div style={{ position: "absolute", top: 14, left: pct(low) + "%", width: (pct(high) - pct(low)) + "%", height: 4, background: "#3d8af7", borderRadius: 2 }} />
+      <div ref={ref} style={{ position: "absolute", top: 14, left: 0, right: 0, height: 4, background: "var(--border-primary)", borderRadius: 2 }} />
+      <div style={{ position: "absolute", top: 14, left: pct(low) + "%", width: (pct(high) - pct(low)) + "%", height: 4, background: "var(--accent)", borderRadius: 2, boxShadow: "0 0 6px var(--accent-glow)" }} />
       {[["low", low], ["high", high]].map(([w, v]) => (
         <div key={w} onPointerDown={(e) => { e.preventDefault(); setDrag(w); }}
-          style={{ position: "absolute", top: 8, left: `calc(${pct(v)}% - 8px)`, width: 16, height: 16, borderRadius: "50%", background: "#fff", border: "2px solid #3d8af7", cursor: "grab", zIndex: drag === w ? 10 : 5, touchAction: "none", boxShadow: "0 1px 4px rgba(61,138,247,0.3)" }} />
+          style={{ position: "absolute", top: 7, left: `calc(${pct(v)}% - 9px)`, width: 18, height: 18, borderRadius: "50%", background: "var(--accent)", border: "2px solid var(--bg-primary)", cursor: "grab", zIndex: drag === w ? 10 : 5, touchAction: "none", boxShadow: "0 0 8px rgba(61,138,247,0.4)" }} />
       ))}
     </div>
   );
 }
 
 // ─── Standings table ──────────────────────────────────────────────────────────
-function StTable({ standings, zones = true, compact = false, highlightTeam }) {
+const FORM_COLORS = { W: "var(--green)", D: "var(--gray)", L: "var(--red)" };
+
+function StTable({ standings, zones = true, compact = false, highlightTeam, showForm = false }) {
   const zs = zones ? [{ s: 0, e: 3, c: ZONE_COLORS.ch }, { s: 4, e: 7, c: ZONE_COLORS.eu }, { s: 8, e: 13, c: ZONE_COLORS.re }] : [];
   const gz = (i) => zs.find((z) => i >= z.s && i <= z.e);
+  const cols = compact
+    ? ["#","Team","P","W","D","L","GD","Pts"]
+    : ["#","Team","P","W","D","L","GF","GA","GD","Pts"];
   return (
     <div style={{ ...S.card }}>
       <table style={{ width: "100%", fontSize: compact ? 11 : 13, borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ background: "var(--color-background-secondary,#f8f9fa)", borderBottom: "1px solid var(--color-border-tertiary,#e9ecef)" }}>
-            {["#","Team","P","W","D","L","GF","GA","GD","Pts"].map((h) => (
-              <th key={h} style={{ textAlign: h === "Team" ? "left" : "center", padding: compact ? "5px 3px" : "7px 5px", fontWeight: 600, fontSize: 10, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, width: h === "Team" ? "auto" : h === "#" ? 24 : 30 }}>{h}</th>
+          <tr style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--border-primary)" }}>
+            {cols.map((h) => (
+              <th key={h} style={{ textAlign: h === "Team" ? "left" : "center", padding: compact ? "6px 3px" : "8px 5px", fontWeight: 600, fontSize: 10, color: "var(--text-tertiary)", letterSpacing: 0.8, width: h === "Team" ? "auto" : h === "#" ? 28 : h === "Pts" ? 36 : 28 }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -360,26 +412,38 @@ function StTable({ standings, zones = true, compact = false, highlightTeam }) {
             const bnd = i > 0 && gz(i - 1) !== z;
             const gd = r.gf - r.ga;
             const isHL = highlightTeam && r.id === highlightTeam;
+            const form = showForm ? getTeamForm(r.id) : [];
             return (
-              <tr key={r.id} style={{
-                borderTop: bnd ? `2px solid ${z ? z.c : "var(--color-border-secondary)"}` : "1px solid var(--color-border-tertiary,#f0f0f0)",
+              <tr key={r.id} data-row="" style={{
+                borderTop: bnd ? `2px solid ${z ? z.c : "var(--border-primary)"}` : `1px solid var(--border-subtle)`,
                 borderLeft: `3px solid ${z ? z.c : "transparent"}`,
-                background: isHL ? "rgba(61,138,247,0.06)" : "transparent",
+                background: isHL ? "var(--accent-glow)" : "transparent",
+                cursor: "default", transition: "background var(--transition-fast)",
               }}>
-                <td style={{ textAlign: "center", padding: "6px 3px", fontSize: 11, color: "var(--color-text-secondary,#999)", fontWeight: isHL ? 700 : 400 }}>{i + 1}</td>
-                <td style={{ padding: "6px 4px", fontWeight: isHL ? 700 : 500 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <td style={{ textAlign: "center", padding: "7px 4px", fontSize: 12, color: z ? z.c : "var(--text-tertiary)", fontWeight: 700 }}>{i + 1}</td>
+                <td style={{ padding: "7px 5px", fontWeight: isHL ? 700 : 500 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={S.teamDot(tt?.color)} />
-                    <span style={{ fontSize: compact ? 11 : 12 }}>{tt ? tt.short : r.id}</span>
+                    <span style={{ fontSize: compact ? 11 : 13 }}>{tt ? tt.short : r.id}</span>
+                    {showForm && form.length > 0 && (
+                      <div style={{ display: "flex", gap: 3, marginLeft: 4 }}>
+                        {form.map((f, fi) => (
+                          <span key={fi} style={{ width: 6, height: 6, borderRadius: "50%", background: FORM_COLORS[f], display: "inline-block" }} title={f} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </td>
-                {[r.p, r.w, r.d, r.l, r.gf, r.ga].map((v, j) => (
-                  <td key={j} style={{ textAlign: "center", padding: "6px 3px", color: "var(--color-text-secondary,#666)", fontSize: compact ? 10 : 11 }}>{v}</td>
-                ))}
-                <td style={{ textAlign: "center", padding: "6px 3px", fontWeight: 500, fontSize: compact ? 10 : 11, color: gd > 0 ? "#00985f" : gd < 0 ? "#e03535" : "var(--color-text-secondary,#666)" }}>
+                <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: compact ? 10 : 11 }}>{r.p}</td>
+                <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: compact ? 10 : 11 }}>{r.w}</td>
+                <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: compact ? 10 : 11 }}>{r.d}</td>
+                <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: compact ? 10 : 11 }}>{r.l}</td>
+                {!compact && <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: 11 }}>{r.gf}</td>}
+                {!compact && <td style={{ textAlign: "center", padding: "7px 3px", color: "var(--text-secondary)", fontSize: 11 }}>{r.ga}</td>}
+                <td style={{ textAlign: "center", padding: "7px 3px", fontWeight: 600, fontSize: compact ? 10 : 11, color: gd > 0 ? "var(--green)" : gd < 0 ? "var(--red)" : "var(--text-tertiary)" }}>
                   {gd > 0 ? "+" : ""}{gd}
                 </td>
-                <td style={{ textAlign: "center", padding: "6px 5px", fontWeight: 700, fontSize: compact ? 12 : 14, color: isHL ? "#3d8af7" : "var(--color-text-primary,#222)" }}>{r.pts}</td>
+                <td style={{ textAlign: "center", padding: "7px 5px", fontWeight: 800, fontSize: compact ? 13 : 15, color: i === 0 ? "var(--accent)" : "var(--text-primary)" }}>{r.pts}</td>
               </tr>
             );
           })}
@@ -391,10 +455,10 @@ function StTable({ standings, zones = true, compact = false, highlightTeam }) {
 
 function ZoneLegend() {
   return (
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "8px 0 4px" }}>
-      {[{ c: ZONE_COLORS.ch, l: "Champ. Playoffs (1–4)" }, { c: ZONE_COLORS.eu, l: "Euro Playoffs (5–8)" }, { c: ZONE_COLORS.re, l: "Rel. Playoffs (9–14, bottom 2 relegated)" }].map((z) => (
-        <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--color-text-secondary,#777)" }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: z.c, display: "inline-block" }} />{z.l}
+    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "10px 0 4px" }}>
+      {[{ c: ZONE_COLORS.ch, l: "Championship (1–4)" }, { c: ZONE_COLORS.eu, l: "Europe (5–8)" }, { c: ZONE_COLORS.re, l: "Relegation (9–14)" }].map((z) => (
+        <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-secondary)" }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: z.c, display: "inline-block", opacity: 0.85 }} />{z.l}
         </span>
       ))}
     </div>
@@ -410,40 +474,41 @@ function MatchCard({ match, showGoals = true }) {
   const aWin = match.played && match.awayScore > match.homeScore;
 
   return (
-    <div style={{ borderBottom: "1px solid var(--color-border-tertiary,#f0f0f0)" }}>
+    <div style={{ borderBottom: "1px solid var(--border-subtle)" }}>
       <div onClick={() => { if (hasGoals && showGoals) setOpen(!open); }}
-        style={{ display: "flex", alignItems: "center", padding: "10px 12px", cursor: hasGoals && showGoals ? "pointer" : "default", gap: 4 }}>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
-          <span style={{ fontSize: 13, fontWeight: hWin ? 700 : 500, color: hWin ? "var(--color-text-primary,#111)" : "var(--color-text-secondary,#555)" }}>{h?.short ?? match.homeTeamId}</span>
-          <span style={S.teamDot(h?.color, 7)} />
+        data-row=""
+        style={{ display: "flex", alignItems: "center", padding: "12px 14px", cursor: hasGoals && showGoals ? "pointer" : "default", gap: 6, transition: "background var(--transition-fast)" }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: hWin ? 700 : 500, color: hWin ? "var(--text-primary)" : "var(--text-secondary)" }}>{h?.short ?? match.homeTeamId}</span>
+          <span style={S.teamDot(h?.color, 8)} />
         </div>
-        <div style={{ minWidth: 56, textAlign: "center" }}>
+        <div style={{ minWidth: 68, textAlign: "center" }}>
           {match.played ? (
-            <span style={{ fontSize: 15, fontWeight: 700, padding: "3px 8px", background: "var(--color-background-secondary,#f0f0f0)", borderRadius: 6, letterSpacing: 1 }}>
+            <span style={{ ...S.scoreBox, fontSize: 15 }}>
               {match.homeScore} – {match.awayScore}
             </span>
           ) : (
-            <span style={{ fontSize: 11, color: "var(--color-text-tertiary,#aaa)", fontWeight: 500 }}>vs</span>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600, letterSpacing: 1 }}>vs</span>
           )}
         </div>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 5 }}>
-          <span style={S.teamDot(a?.color, 7)} />
-          <span style={{ fontSize: 13, fontWeight: aWin ? 700 : 500, color: aWin ? "var(--color-text-primary,#111)" : "var(--color-text-secondary,#555)" }}>{a?.short ?? match.awayTeamId}</span>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 6 }}>
+          <span style={S.teamDot(a?.color, 8)} />
+          <span style={{ fontSize: 13, fontWeight: aWin ? 700 : 500, color: aWin ? "var(--text-primary)" : "var(--text-secondary)" }}>{a?.short ?? match.awayTeamId}</span>
         </div>
         {hasGoals && showGoals && (
-          <span style={{ fontSize: 9, color: "var(--color-text-tertiary,#bbb)", marginLeft: 4, transform: open ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 0.15s" }}>▼</span>
+          <span style={{ fontSize: 9, color: "var(--text-tertiary)", marginLeft: 2, transform: open ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform var(--transition-fast)" }}>▼</span>
         )}
       </div>
       {open && hasGoals && (
-        <div style={{ padding: "2px 14px 10px", background: "rgba(0,0,0,0.02)" }}>
+        <div style={{ padding: "4px 16px 12px", background: "var(--bg-elevated)" }}>
           {[...match.goals].sort((a, b) => a.minute - b.minute).map((gg, i) => {
             const isOG = gg.player.includes("(OG)");
             return (
-              <div key={i} style={{ display: "flex", justifyContent: gg.team === match.homeTeamId ? "flex-start" : "flex-end", padding: "2px 0" }}>
-                <span style={{ fontSize: 11, color: isOG ? "#e03535" : "var(--color-text-secondary,#666)", display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 10, color: "#aaa" }}>{gg.minute}'</span>
+              <div key={i} style={{ display: "flex", justifyContent: gg.team === match.homeTeamId ? "flex-start" : "flex-end", padding: "3px 0" }}>
+                <span style={{ fontSize: 11, color: isOG ? "var(--red)" : "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 10, color: "var(--text-tertiary)", background: "var(--bg-secondary)", padding: "1px 5px", borderRadius: 4, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{gg.minute}'</span>
                   <span>{gg.player}</span>
-                  {isOG && <span style={{ fontSize: 9, color: "#e03535" }}>OG</span>}
+                  {isOG && <span style={{ fontSize: 9, color: "var(--red)", fontWeight: 700 }}>OG</span>}
                 </span>
               </div>
             );
@@ -461,24 +526,24 @@ function StandingsTab() {
   const [rH, setRH] = useState(lp);
   const fil = useMemo(() => MATCHES.filter(mm => mm.matchday >= rL && mm.matchday <= rH), [rL, rH]);
   const st = useMemo(() => calcStandings(fil), [fil]);
+  const isFullRange = rL === 1 && rH === lp;
 
   return (
     <div>
-      <div style={{ ...S.card, padding: "10px 14px", marginBottom: 12 }}>
+      <div style={{ ...S.card, padding: "12px 16px", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--color-text-secondary,#777)" }}>Matchday range</span>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>MD {rL} – MD {rH}</span>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Matchday range</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)", fontVariantNumeric: "tabular-nums" }}>MD {rL} – {rH}</span>
         </div>
         <DualSlider min={1} max={26} low={rL} high={rH} maxSel={lp} onChange={(l, h) => { setRL(l); setRH(Math.min(h, lp)); }} />
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)" }}>MD 1</span>
-          <span style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)" }}>MD {lp} (latest)</span>
-          <span style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)" }}>MD 26</span>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>MD 1</span>
+          <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>MD 26</span>
         </div>
       </div>
-      <StTable standings={st} />
+      <StTable standings={st} showForm={isFullRange} />
       <ZoneLegend />
-      <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 4 }}>
+      <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6 }}>
         <strong style={{ fontWeight: 600 }}>Tiebreakers:</strong> {LEAGUE.tiebreakers.join(" → ")}
       </p>
     </div>
@@ -490,25 +555,34 @@ function FixturesTab() {
   const lp = Math.max(...MATCHES.filter(mm => mm.played).map(mm => mm.matchday));
   const [md, setMd] = useState(lp);
   const mdMatches = MATCHES.filter(mm => mm.matchday === md);
+  const scrollRef = useRef(null);
+  const activeRef = useRef(null);
+
+  useEffect(() => {
+    if (activeRef.current) activeRef.current.scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
+  }, []);
+
+  const navBtn = { width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-secondary)", border: "1px solid var(--border-primary)", borderRadius: 10, cursor: "pointer", fontSize: 16, color: "var(--text-primary)", flexShrink: 0 };
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <button onClick={() => setMd(Math.max(1, md - 1))} style={{ padding: "5px 12px", background: "var(--color-background-secondary,#f5f5f5)", border: "1px solid var(--color-border-tertiary,#ddd)", borderRadius: 8, cursor: "pointer", fontSize: 14, color: "var(--color-text-primary,#333)" }}>‹</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button onClick={() => setMd(Math.max(1, md - 1))} style={navBtn}>‹</button>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Matchday {md}</span>
-          <span style={{ marginLeft: 8, fontSize: 11, color: md <= lp ? "#00985f" : "var(--color-text-tertiary,#aaa)", fontWeight: 600 }}>{md <= lp ? "✓ Played" : "Upcoming"}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>Matchday {md}</span>
+          <span style={{ marginLeft: 8, fontSize: 11, color: md <= lp ? "var(--green)" : "var(--text-tertiary)", fontWeight: 600 }}>{md <= lp ? "FT" : "Upcoming"}</span>
         </div>
-        <button onClick={() => setMd(Math.min(26, md + 1))} style={{ padding: "5px 12px", background: "var(--color-background-secondary,#f5f5f5)", border: "1px solid var(--color-border-tertiary,#ddd)", borderRadius: 8, cursor: "pointer", fontSize: 14, color: "var(--color-text-primary,#333)" }}>›</button>
+        <button onClick={() => setMd(Math.min(26, md + 1))} style={navBtn}>›</button>
       </div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 3, flexWrap: "wrap", marginBottom: 12 }}>
+      <div ref={scrollRef} className="tab-scroll" style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 4, marginBottom: 14 }}>
         {Array.from({ length: 26 }, (_, i) => i + 1).map((d) => (
-          <button key={d} onClick={() => setMd(d)} style={{
-            width: 26, height: 22, fontSize: 10, fontWeight: md === d ? 700 : 400,
-            border: md === d ? "2px solid #3d8af7" : "1px solid var(--color-border-tertiary,#ddd)",
-            borderRadius: 5, cursor: "pointer",
-            background: md === d ? "#3d8af7" : d <= lp ? "var(--color-background-secondary,#f5f5f5)" : "transparent",
-            color: md === d ? "#fff" : d <= lp ? "var(--color-text-primary,#333)" : "var(--color-text-tertiary,#aaa)",
+          <button key={d} ref={d === md ? activeRef : null} onClick={() => setMd(d)} style={{
+            minWidth: 40, height: 32, fontSize: 12, fontWeight: md === d ? 700 : 400,
+            border: md === d ? "2px solid var(--accent)" : "1px solid var(--border-primary)",
+            borderRadius: 8, cursor: "pointer", flexShrink: 0,
+            background: md === d ? "var(--accent)" : d <= lp ? "var(--bg-secondary)" : "transparent",
+            color: md === d ? "#fff" : d <= lp ? "var(--text-primary)" : "var(--text-tertiary)",
+            transition: "all var(--transition-fast)",
           }}>{d}</button>
         ))}
       </div>
@@ -516,13 +590,13 @@ function FixturesTab() {
         {mdMatches.map(mm => <MatchCard key={mm.id} match={mm} />)}
       </div>
       {mdMatches.some(mm => mm.goals?.length > 0) && (
-        <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 6, textAlign: "center" }}>Tap a match to see goalscorers</p>
+        <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 8, textAlign: "center" }}>Tap a match to see goalscorers</p>
       )}
     </div>
   );
 }
 
-// ─── Tab: Minutes ─────────────────────────────────────────────────────────────
+// ─── Tab: Timeline ─────────────────────────────────────────────────────────────
 function MinutesTab() {
   const [minute, setMinute] = useState(90);
   const played = MATCHES.filter(mm => mm.played);
@@ -544,36 +618,38 @@ function MinutesTab() {
 
   return (
     <div>
-      <div style={{ ...S.card, padding: "12px 16px", marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--color-text-secondary,#777)" }}>Freeze all matches at</span>
-          <span style={{ fontSize: 32, fontWeight: 800, color: "#3d8af7", lineHeight: 1 }}>{minute}'</span>
+      <div style={{ ...S.card, padding: "16px 18px", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-tertiary)", letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Freeze at</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>What if all matches ended at this minute?</div>
+          </div>
+          <span style={{ fontSize: 40, fontWeight: 800, color: "var(--accent)", lineHeight: 1, textShadow: "0 0 20px var(--accent-glow)", fontVariantNumeric: "tabular-nums" }}>{minute}'</span>
         </div>
-        <input type="range" min={0} max={95} value={minute} onChange={e => setMinute(parseInt(e.target.value))}
-          style={{ width: "100%", accentColor: "#3d8af7", cursor: "pointer" }} />
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-          {["0' KO", "45' HT", "90'+ FT"].map(l => <span key={l} style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)" }}>{l}</span>)}
+        <input type="range" min={0} max={95} value={minute} onChange={e => setMinute(parseInt(e.target.value))} style={{ width: "100%" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+          {["0' KO", "45' HT", "90'+ FT"].map(l => <span key={l} style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 500 }}>{l}</span>)}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 }}>
         {[
-          { l: "Frozen at", v: minute + "'", c: "#3d8af7" },
-          { l: "Results changed", v: changes, c: changes > 0 ? "#e03535" : "#00985f" },
+          { l: "Frozen at", v: minute + "'", c: "var(--accent)" },
+          { l: "Results changed", v: changes, c: changes > 0 ? "var(--red)" : "var(--green)" },
           { l: "Scorer data", v: `${withGoals}/${played.length}` },
         ].map(c => (
-          <div key={c.l} style={{ ...S.card, padding: "10px 10px" }}>
-            <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
+          <div key={c.l} style={S.statCard}>
+            <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, fontWeight: 500 }}>{c.l}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: c.c || "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{c.v}</div>
           </div>
         ))}
       </div>
       <StTable standings={st} />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
         {st.map((s, i) => {
           const d = ftPos[s.id] - (i + 1);
           if (!d) return null;
           return (
-            <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: d > 0 ? "#00985f" : "#e03535", background: d > 0 ? "rgba(0,152,95,0.1)" : "rgba(224,53,53,0.1)", padding: "2px 7px", borderRadius: 10 }}>
+            <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: d > 0 ? "var(--green)" : "var(--red)", background: d > 0 ? "var(--green-dim)" : "var(--red-dim)", padding: "3px 8px", borderRadius: 10 }}>
               <span style={S.teamDot(T(s.id)?.color, 6)} />{T(s.id)?.short} {d > 0 ? "↑" : "↓"}{Math.abs(d)}
             </span>
           );
@@ -587,7 +663,7 @@ function MinutesTab() {
 // ─── Tab: Playoffs ────────────────────────────────────────────────────────────
 function PlayoffsTab() {
   const fullSt = useMemo(() => calcStandings(MATCHES.filter(mm => mm.played)), []);
-  const { phases, fixtures: baseFixtures } = useMemo(() => generatePostSeason(fullSt), [fullSt]);
+  const { phases, fixtures: baseFixtures } = useMemo(() => generatePostSeason(), []);
   const [results, setResults] = useState(PLAYOFF_RESULTS);
   const phaseColors = { champ: ZONE_COLORS.ch, europe: ZONE_COLORS.eu, releg: ZONE_COLORS.re };
 
@@ -608,11 +684,16 @@ function PlayoffsTab() {
     return f;
   });
 
+  const fmtDate = (d) => {
+    const dt = new Date(d + "T12:00:00");
+    return dt.toLocaleDateString("en-GB", { weekday: "short", month: "short", day: "numeric" });
+  };
+
   return (
     <div>
-      <div style={{ ...S.card, padding: "10px 14px", marginBottom: 16, borderLeft: "3px solid #3d8af7" }}>
-        <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: 0, lineHeight: 1.5 }}>
-          Post-season starts <strong>April 4, 2026</strong>. Based on final MD 26 standings. Enter scores below as matches are played.
+      <div style={{ ...S.card, padding: "12px 16px", marginBottom: 16, borderLeft: "3px solid var(--accent)" }}>
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, lineHeight: 1.6 }}>
+          Post-season begins <strong>April 4, 2026</strong>. Official draw fixtures. Enter scores as matches are played.
         </p>
       </div>
       {phases.map(phase => {
@@ -627,7 +708,6 @@ function PlayoffsTab() {
             : s.pts,
         })).sort((a, b) => b.carriedPts - a.carriedPts);
 
-        // Live standings for this phase
         const phaseStandings = (() => {
           const base = {};
           carryPts.forEach(s => { base[s.id] = { id: s.id, pts: s.carriedPts, w: 0, d: 0, l: 0, gf: 0, ga: 0 }; });
@@ -642,21 +722,24 @@ function PlayoffsTab() {
           return Object.values(base).sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.w - a.w);
         })();
 
-        return (
-          <div key={phase.id} style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, background: color, display: "inline-block" }} />
-              <span style={{ fontWeight: 700, fontSize: 15 }}>{phase.name}</span>
-            </div>
-            <p style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", margin: "0 0 10px" }}>{phase.label}</p>
+        // Group fixtures by matchday
+        const matchdays = [...new Set(phaseFixtures.map(f => f.matchday))].sort((a, b) => a - b);
 
-            {/* Standings with carry pts */}
+        return (
+          <div key={phase.id} style={{ marginBottom: 28 }}>
+            {/* Phase header bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "8px 12px", borderRadius: 10, background: `${color}18` }}>
+              <span style={{ width: 4, height: 20, borderRadius: 2, background: color, flexShrink: 0 }} />
+              <span style={{ fontWeight: 700, fontSize: 14, color: color, flex: 1 }}>{phase.name}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: "0 0 10px", paddingLeft: 2 }}>{phase.label}</p>
+
             <div style={{ ...S.card, marginBottom: 10 }}>
               <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "var(--color-background-secondary,#f8f9fa)", borderBottom: "1px solid var(--color-border-tertiary,#eee)" }}>
-                    {["#","Team","Reg. Pts","Carry Pts","Pts","GD"].map(h => (
-                      <th key={h} style={{ textAlign: h === "Team" ? "left" : "center", padding: "5px 6px", fontSize: 10, fontWeight: 600, color: "var(--color-text-secondary,#888)" }}>{h}</th>
+                  <tr style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--border-primary)" }}>
+                    {["#","Team","Reg","Carry","Total","GD"].map(h => (
+                      <th key={h} style={{ textAlign: h === "Team" ? "left" : "center", padding: "6px 6px", fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: 0.5 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -666,18 +749,18 @@ function PlayoffsTab() {
                     const tt = T(s.id);
                     const gd = s.gf - s.ga;
                     return (
-                      <tr key={s.id} style={{ borderTop: "1px solid var(--color-border-tertiary,#f0f0f0)", borderLeft: `3px solid ${color}` }}>
-                        <td style={{ textAlign: "center", padding: "5px 4px", fontSize: 11, color: "#999" }}>{i + 1}</td>
-                        <td style={{ padding: "5px 6px", fontWeight: 500 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <tr key={s.id} data-row="" style={{ borderTop: "1px solid var(--border-subtle)", borderLeft: `3px solid ${color}`, transition: "background var(--transition-fast)" }}>
+                        <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: color, fontWeight: 700 }}>{i + 1}</td>
+                        <td style={{ padding: "6px 6px", fontWeight: 500 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <span style={S.teamDot(tt?.color)} />
-                            <span>{tt?.short}</span>
+                            <span style={{ fontSize: 12 }}>{tt?.short}</span>
                           </div>
                         </td>
-                        <td style={{ textAlign: "center", padding: "5px 4px", color: "#999", fontSize: 11 }}>{base?.pts}</td>
-                        <td style={{ textAlign: "center", padding: "5px 4px", color: "#666" }}>{base?.carriedPts}</td>
-                        <td style={{ textAlign: "center", padding: "5px 4px", fontWeight: 700, color: "#3d8af7" }}>{s.pts}</td>
-                        <td style={{ textAlign: "center", padding: "5px 4px", color: gd > 0 ? "#00985f" : gd < 0 ? "#e03535" : "#999", fontSize: 11 }}>{gd > 0 ? "+" : ""}{gd}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", color: "var(--text-tertiary)", fontSize: 11 }}>{base?.pts}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", color: "var(--text-secondary)" }}>{base?.carriedPts}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", fontWeight: 800, color: "var(--accent)", fontSize: 13 }}>{s.pts}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", color: gd > 0 ? "var(--green)" : gd < 0 ? "var(--red)" : "var(--text-tertiary)", fontSize: 11, fontWeight: 600 }}>{gd > 0 ? "+" : ""}{gd}</td>
                       </tr>
                     );
                   })}
@@ -685,34 +768,47 @@ function PlayoffsTab() {
               </table>
             </div>
 
-            {/* Fixtures with score entry */}
             <div style={{ ...S.card }}>
-              {phaseFixtures.map((f, fi) => {
-                const hT = T(f.homeTeamId), aT = T(f.awayTeamId);
-                const r = results[f.id] || { h: "", a: "" };
-                const hS = r.h !== null && r.h !== undefined ? r.h : "";
-                const aS = r.a !== null && r.a !== undefined ? r.a : "";
-                const hWin = f.played && f.homeScore > f.awayScore;
-                const aWin = f.played && f.awayScore > f.homeScore;
+              {matchdays.map(md => {
+                const mdFixtures = phaseFixtures.filter(f => f.matchday === md);
+                const date = mdFixtures[0]?.date;
                 return (
-                  <div key={f.id} style={{ borderBottom: fi < phaseFixtures.length - 1 ? "1px solid var(--color-border-tertiary,#f0f0f0)" : "none", padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
-                      <span style={{ fontSize: 12, fontWeight: hWin ? 700 : 500, color: hWin ? "var(--color-text-primary,#111)" : "var(--color-text-secondary,#555)" }}>{hT?.short}</span>
-                      <span style={S.teamDot(hT?.color, 7)} />
+                  <div key={md}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "var(--bg-elevated)", borderBottom: "1px solid var(--border-subtle)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.3 }}>MD {md}</span>
+                      {date && <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{fmtDate(date)}</span>}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input type="number" min="0" max="20" value={hS} onChange={e => setScore(f.id, "h", e.target.value)}
-                        placeholder="–"
-                        style={{ width: 32, height: 26, textAlign: "center", fontSize: 13, fontWeight: 700, border: `1px solid ${hWin ? "#3d8af7" : "var(--color-border-secondary,#ddd)"}`, borderRadius: 6, background: hWin ? "rgba(61,138,247,0.08)" : "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }} />
-                      <span style={{ fontSize: 12, color: "#bbb", fontWeight: 700 }}>–</span>
-                      <input type="number" min="0" max="20" value={aS} onChange={e => setScore(f.id, "a", e.target.value)}
-                        placeholder="–"
-                        style={{ width: 32, height: 26, textAlign: "center", fontSize: 13, fontWeight: 700, border: `1px solid ${aWin ? "#3d8af7" : "var(--color-border-secondary,#ddd)"}`, borderRadius: 6, background: aWin ? "rgba(61,138,247,0.08)" : "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }} />
-                    </div>
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 5 }}>
-                      <span style={S.teamDot(aT?.color, 7)} />
-                      <span style={{ fontSize: 12, fontWeight: aWin ? 700 : 500, color: aWin ? "var(--color-text-primary,#111)" : "var(--color-text-secondary,#555)" }}>{aT?.short}</span>
-                    </div>
+                    {mdFixtures.map((f, fi) => {
+                      const hT = T(f.homeTeamId), aT = T(f.awayTeamId);
+                      const r = results[f.id] || { h: "", a: "" };
+                      const hS = r.h !== null && r.h !== undefined ? r.h : "";
+                      const aS = r.a !== null && r.a !== undefined ? r.a : "";
+                      const hWin = f.played && f.homeScore > f.awayScore;
+                      const aWin = f.played && f.awayScore > f.homeScore;
+                      const scoreInput = (val, side) => ({
+                        width: 36, height: 30, textAlign: "center", fontSize: 14, fontWeight: 700,
+                        border: `1px solid ${(side === "h" ? hWin : aWin) ? "var(--accent)" : "var(--border-primary)"}`,
+                        borderRadius: 8, background: (side === "h" ? hWin : aWin) ? "var(--accent-glow)" : "var(--bg-elevated)",
+                        color: "var(--text-primary)", fontVariantNumeric: "tabular-nums",
+                      });
+                      return (
+                        <div key={f.id} data-row="" style={{ borderBottom: fi < mdFixtures.length - 1 ? "1px solid var(--border-subtle)" : "none", padding: "10px 14px", display: "flex", alignItems: "center", gap: 6, transition: "background var(--transition-fast)" }}>
+                          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: hWin ? 700 : 500, color: hWin ? "var(--text-primary)" : "var(--text-secondary)" }}>{hT?.short}</span>
+                            <span style={S.teamDot(hT?.color, 8)} />
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <input type="number" min="0" max="20" value={hS} onChange={e => setScore(f.id, "h", e.target.value)} placeholder="–" style={scoreInput(hS, "h")} />
+                            <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 700 }}>–</span>
+                            <input type="number" min="0" max="20" value={aS} onChange={e => setScore(f.id, "a", e.target.value)} placeholder="–" style={scoreInput(aS, "a")} />
+                          </div>
+                          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 6 }}>
+                            <span style={S.teamDot(aT?.color, 8)} />
+                            <span style={{ fontSize: 12, fontWeight: aWin ? 700 : 500, color: aWin ? "var(--text-primary)" : "var(--text-secondary)" }}>{aT?.short}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -759,7 +855,7 @@ function PredictTab({ predictions, setPredictions }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           {filledCount}/{unp.length} predictions entered
         </span>
         {filledCount > 0 && (
@@ -770,13 +866,13 @@ function PredictTab({ predictions, setPredictions }) {
       {/* Fixtures to predict */}
       {Object.keys(byMd).sort((a, b) => Number(a) - Number(b)).map(mdKey => (
         <div key={mdKey} style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 6, paddingLeft: 2 }}>MATCHDAY {mdKey}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 6, paddingLeft: 2 }}>MATCHDAY {mdKey}</div>
           <div style={{ ...S.card }}>
             {byMd[mdKey].map((match, mi) => {
               const p = predictions[match.id] || { h: "", a: "" };
               const hT = T(match.homeTeamId), aT = T(match.awayTeamId);
               return (
-                <div key={match.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: mi < byMd[mdKey].length - 1 ? "1px solid var(--color-border-tertiary,#f0f0f0)" : "none" }}>
+                <div key={match.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: mi < byMd[mdKey].length - 1 ? "1px solid var(--border-subtle)" : "none" }}>
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
                     <span style={{ fontSize: 12, fontWeight: 500 }}>{hT?.short}</span>
                     <span style={S.teamDot(hT?.color, 7)} />
@@ -784,11 +880,11 @@ function PredictTab({ predictions, setPredictions }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input type="number" min="0" max="20" value={p.h ?? ""} onChange={e => setScore(match.id, "h", e.target.value)}
                       placeholder="–"
-                      style={{ width: 34, height: 28, textAlign: "center", fontSize: 14, fontWeight: 700, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 6, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }} />
+                      style={{ width: 34, height: 28, textAlign: "center", fontSize: 14, fontWeight: 700, border: "1px solid var(--border-primary)", borderRadius: 6, background: "var(--bg-primary)", color: "var(--text-primary)" }} />
                     <span style={{ fontSize: 12, color: "#bbb", fontWeight: 700 }}>–</span>
                     <input type="number" min="0" max="20" value={p.a ?? ""} onChange={e => setScore(match.id, "a", e.target.value)}
                       placeholder="–"
-                      style={{ width: 34, height: 28, textAlign: "center", fontSize: 14, fontWeight: 700, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 6, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }} />
+                      style={{ width: 34, height: 28, textAlign: "center", fontSize: 14, fontWeight: 700, border: "1px solid var(--border-primary)", borderRadius: 6, background: "var(--bg-primary)", color: "var(--text-primary)" }} />
                   </div>
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 5 }}>
                     <span style={S.teamDot(aT?.color, 7)} />
@@ -804,11 +900,11 @@ function PredictTab({ predictions, setPredictions }) {
       {/* Projected standings */}
       {filledCount > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>PROJECTED STANDINGS</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 8 }}>PROJECTED STANDINGS</div>
           <div style={{ ...S.card, marginBottom: 8 }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "var(--color-background-secondary,#f8f9fa)", borderBottom: "1px solid var(--color-border-tertiary,#eee)" }}>
+                <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-subtle)" }}>
                   {["#","Team","Pts","GD","Δ"].map(h => (
                     <th key={h} style={{ textAlign: h === "Team" ? "left" : "center", padding: "6px 5px", fontSize: 10, fontWeight: 600, color: "#888" }}>{h}</th>
                   ))}
@@ -822,7 +918,7 @@ function PredictTab({ predictions, setPredictions }) {
                   const delta = oldPos - (i + 1);
                   const zoneColors = [ZONE_COLORS.ch,ZONE_COLORS.ch,ZONE_COLORS.ch,ZONE_COLORS.ch,ZONE_COLORS.eu,ZONE_COLORS.eu,ZONE_COLORS.eu,ZONE_COLORS.eu,ZONE_COLORS.re,ZONE_COLORS.re,ZONE_COLORS.re,ZONE_COLORS.re,ZONE_COLORS.re,ZONE_COLORS.re];
                   return (
-                    <tr key={r.id} style={{ borderTop: "1px solid var(--color-border-tertiary,#f0f0f0)", borderLeft: `3px solid ${zoneColors[i]}` }}>
+                    <tr key={r.id} style={{ borderTop: "1px solid var(--border-subtle)", borderLeft: `3px solid ${zoneColors[i]}` }}>
                       <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: "#999" }}>{i + 1}</td>
                       <td style={{ padding: "6px 5px", fontWeight: 500 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -847,7 +943,7 @@ function PredictTab({ predictions, setPredictions }) {
       )}
 
       {unp.length === 0 && (
-        <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>All matches have been played.</div>
+        <div style={{ textAlign: "center", padding: 24, color: "var(--text-tertiary)", fontSize: 13 }}>All matches have been played.</div>
       )}
     </div>
   );
@@ -860,7 +956,7 @@ function ScenariosTab() {
   const [groupTarget, setGroupTarget] = useState(1); // position within playoff group
   const [showAllFixtures, setShowAllFixtures] = useState(false);
   const st = useMemo(() => calcStandings(MATCHES.filter(mm => mm.played)), []);
-  const { phases: poPhases, fixtures: poFixtures } = useMemo(() => generatePostSeason(st), []);
+  const { phases: poPhases, fixtures: poFixtures } = useMemo(() => generatePostSeason(), []);
   const regSeasonDone = MATCHES.filter(m => !m.played).length === 0;
   const ord = (n) => ["st","nd","rd"][n-1] || "th";
 
@@ -939,8 +1035,8 @@ function ScenariosTab() {
     { key: "relegated", label: "Relegated",           color: "#e03535" },
   ];
 
-  const SELECT_STYLE = { width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" };
-  const LBL_STYLE    = { fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
+  const SELECT_STYLE = { width: "100%", padding: "8px 10px", fontSize: 13, fontWeight: 500, border: "1px solid var(--border-primary)", borderRadius: 8, background: "var(--bg-primary)", color: "var(--text-primary)" };
+  const LBL_STYLE    = { fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
 
   return (
     <div>
@@ -977,13 +1073,13 @@ function ScenariosTab() {
           <div style={{ ...S.card, padding: 14, marginBottom: 14, borderLeft: `4px solid ${phaseColor}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor }}>{teamPhase?.name}</span>
-              <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "var(--color-background-secondary,#f5f5f5)", padding: "2px 8px", borderRadius: 8 }}>{teamPhase?.label}</span>
+              <span style={{ fontSize: 11, color: "var(--text-secondary)", background: "var(--bg-elevated)", padding: "2px 8px", borderRadius: 8 }}>{teamPhase?.label}</span>
             </div>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--color-border-tertiary,#eee)" }}>
+                <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                   {["#","Team","Carry","Playoff","Total"].map(h => (
-                    <th key={h} style={{ textAlign: h==="Team"?"left":"center", padding: "4px 6px", fontSize: 10, fontWeight: 600, color: "var(--color-text-secondary,#888)" }}>{h}</th>
+                    <th key={h} style={{ textAlign: h==="Team"?"left":"center", padding: "4px 6px", fontSize: 10, fontWeight: 600, color: "var(--text-secondary)" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -993,7 +1089,7 @@ function ScenariosTab() {
                   const isMe = s.id === team;
                   const playoffPts = s.pts - s.carryPts;
                   return (
-                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border-tertiary,#f0f0f0)", background: isMe ? "rgba(61,138,247,0.07)" : "transparent" }}>
+                    <tr key={s.id} style={{ borderTop: "1px solid var(--border-subtle)", background: isMe ? "rgba(61,138,247,0.07)" : "transparent" }}>
                       <td style={{ textAlign: "center", padding: "5px 4px", fontSize: 11, color: "#999" }}>{i+1}</td>
                       <td style={{ padding: "5px 6px", fontWeight: isMe ? 700 : 500 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1003,7 +1099,7 @@ function ScenariosTab() {
                       </td>
                       <td style={{ textAlign: "center", padding: "5px 4px", color: "#999" }}>{s.carryPts}</td>
                       <td style={{ textAlign: "center", padding: "5px 4px", color: playoffPts>0?"#00985f":"#999" }}>{playoffPts>0?"+":""}{playoffPts}</td>
-                      <td style={{ textAlign: "center", padding: "5px 4px", fontWeight: 700, color: isMe?"#3d8af7":"var(--color-text-primary,#222)" }}>{s.pts}</td>
+                      <td style={{ textAlign: "center", padding: "5px 4px", fontWeight: 700, color: isMe?"#3d8af7":"var(--text-primary)" }}>{s.pts}</td>
                     </tr>
                   );
                 })}
@@ -1020,8 +1116,8 @@ function ScenariosTab() {
               { l: "Games left",   v: remGroupFix.length },
             ].map(c => (
               <div key={c.l} style={{ ...S.card, padding: "8px 10px" }}>
-                <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
+                <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 3 }}>{c.l}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--text-primary)" }}>{c.v}</div>
               </div>
             ))}
           </div>
@@ -1054,8 +1150,8 @@ function ScenariosTab() {
               { l: "Games left", v: rem.length },
             ].map(c => (
               <div key={c.l} style={{ ...S.card, padding: "8px 10px" }}>
-                <div style={{ fontSize: 10, color: "var(--color-text-secondary,#888)", marginBottom: 3 }}>{c.l}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--color-text-primary,#222)" }}>{c.v}</div>
+                <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 3 }}>{c.l}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.c || "var(--text-primary)" }}>{c.v}</div>
               </div>
             ))}
           </div>
@@ -1076,7 +1172,7 @@ function ScenariosTab() {
           </div>
           {rem.length > 0 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING REGULAR SEASON FIXTURES</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 8 }}>REMAINING REGULAR SEASON FIXTURES</div>
               <div style={{ ...S.card, marginBottom: 14 }}>
                 {rem.map(mm => <MatchCard key={mm.id} match={mm} showGoals={false} />)}
               </div>
@@ -1088,7 +1184,7 @@ function ScenariosTab() {
       {/* ── MC simulation outcome probabilities ── */}
       {oc ? (
         <div style={{ ...S.card, padding: 14, marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 10 }}>
             SIMULATED FINAL OUTCOMES — {T(team)?.name}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1098,7 +1194,7 @@ function ScenariosTab() {
               return (
                 <div key={o.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 12, color: o.color, fontWeight: 600, width: 160, flexShrink: 0 }}>{o.label}</span>
-                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--color-background-secondary,#f0f0f0)", overflow: "hidden" }}>
+                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--bg-secondary)", overflow: "hidden" }}>
                     <div style={{ width: p + "%", height: "100%", background: o.color, borderRadius: 4 }} />
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 700, color: o.color, width: 36, textAlign: "right" }}>{p}%</span>
@@ -1106,12 +1202,12 @@ function ScenariosTab() {
               );
             })}
           </div>
-          <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", margin: "8px 0 0", lineHeight: 1.4 }}>
+          <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "8px 0 0", lineHeight: 1.4 }}>
             Based on {mc.N.toLocaleString()} simulations. Run or re-run from the <strong>Simulate</strong> tab.
           </p>
         </div>
       ) : (
-        <div style={{ ...S.card, padding: 14, marginBottom: 14, color: "var(--color-text-secondary,#888)", fontSize: 12 }}>
+        <div style={{ ...S.card, padding: 14, marginBottom: 14, color: "var(--text-secondary)", fontSize: 12 }}>
           Run the simulation in the <strong>Simulate</strong> tab to see final outcome probabilities here.
         </div>
       )}
@@ -1119,10 +1215,10 @@ function ScenariosTab() {
       {/* ── Playoff fixtures ── */}
       {teamPhase && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 8 }}>
             {regSeasonDone ? "PLAYOFF FIXTURES" : "PROJECTED PLAYOFF FIXTURES"}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", marginBottom: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>
             {T(team)?.name}'s fixtures ({teamFixtures.length} games)
           </div>
           <div style={{ ...S.card, marginBottom: 10 }}>
@@ -1131,7 +1227,7 @@ function ScenariosTab() {
           {otherFixtures.length > 0 && (
             <>
               <button onClick={() => setShowAllFixtures(v => !v)}
-                style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 6 }}>
+                style={{ fontSize: 11, color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 6 }}>
                 {showAllFixtures ? "▾ Hide" : "▸ Show"} all {teamPhase.name} fixtures ({allPhaseFixtures.length} total)
               </button>
               {showAllFixtures && (
@@ -1234,9 +1330,10 @@ function runMonteCarlo(N = 10000) {
     const stMap = {};
     st.forEach(s => { stMap[s.id] = s; ptsSums[s.id] += s.pts; });
 
-    const champTeams = st.slice(0,4).map(s => s.id);
-    const euroTeams  = st.slice(4,8).map(s => s.id);
-    const relegTeams = st.slice(8,14).map(s => s.id);
+    // Use official drawn groups (not simulated standings)
+    const champTeams = PLAYOFF_PHASES[0].teams;
+    const euroTeams  = PLAYOFF_PHASES[1].teams;
+    const relegTeams = PLAYOFF_PHASES[2].teams;
 
     const champCarry = {}, euroCarry = {}, relegCarry = {};
     champTeams.forEach(id => { champCarry[id] = stMap[id].pts; });
@@ -1305,21 +1402,21 @@ function SimulateTab() {
 
   return (
     <div>
-      <div style={{ ...S.card, padding: "12px 14px", marginBottom: 14, borderLeft: "3px solid #3d8af7" }}>
-        <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: "0 0 10px", lineHeight: 1.5 }}>
+      <div style={{ ...S.card, padding: "14px 16px", marginBottom: 14, borderLeft: "3px solid var(--accent)" }}>
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 12px", lineHeight: 1.5 }}>
           {unplayed.length === 0
-            ? <>Regular season complete. Simulates all <strong>three playoff phases</strong> from final standings using a Poisson goal model calibrated on 26 matchdays. Carry-over: 100% for Championship &amp; Relegation groups, 50% (rounded up) for Europe group.</>
-            : <>Simulates the remaining <strong>{unplayed.length} match{unplayed.length !== 1 ? "es" : ""}</strong> plus all three playoff phases using a Poisson goal model. Carry-over: 100% for Champ/Releg groups, 50% rounded up for Europe group.</>
+            ? <>Simulates all <strong>three playoff phases</strong> using a Poisson model calibrated on 26 matchdays.</>
+            : <>Simulates <strong>{unplayed.length} remaining match{unplayed.length !== 1 ? "es" : ""}</strong> + all playoff phases using a Poisson model.</>
           }
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: "var(--color-text-secondary,#777)" }}>Simulations:</span>
+            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>Simulations:</span>
             {[1000,5000,10000].map(v => (
               <button key={v} onClick={() => setN(v)} style={{ ...S.pill(n === v), fontSize: 11, padding: "3px 10px" }}>{v.toLocaleString()}</button>
             ))}
           </div>
-          <button onClick={run} disabled={running} style={{ padding: "6px 16px", background: running ? "#aaa" : "#3d8af7", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: running ? "default" : "pointer" }}>
+          <button onClick={run} disabled={running} style={{ padding: "6px 16px", background: running ? "var(--text-tertiary)" : "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: running ? "default" : "pointer", transition: "all var(--transition-fast)" }}>
             {running ? "Running…" : "Run simulation"}
           </button>
         </div>
@@ -1328,26 +1425,26 @@ function SimulateTab() {
       {/* Legend */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
         {[
-          { c: "#FFB800", l: "Champion" },
-          { c: "#3d8af7", l: "European (2nd–5th)" },
-          { c: "#00985f", l: "Europe PO no UEFA (6th–8th)" },
-          { c: "#9e9e9e", l: "Safe (9th–12th)" },
-          { c: "#e03535", l: "Relegated (13th–14th)" },
+          { c: "var(--gold)", l: "Champion" },
+          { c: "var(--accent)", l: "European (2nd–5th)" },
+          { c: "var(--green)", l: "Europe PO (6th–8th)" },
+          { c: "var(--gray)", l: "Safe (9th–12th)" },
+          { c: "var(--red)", l: "Relegated (13th–14th)" },
         ].map(z => (
-          <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--color-text-secondary,#777)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: z.c, display: "inline-block" }} />
+          <span key={z.l} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--text-secondary)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: z.c, display: "inline-block" }} />
             {z.l}
           </span>
         ))}
       </div>
 
       {sims === null && !running && (
-        <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>Click "Run simulation" to simulate the playoff phases.</div>
+        <div style={{ textAlign: "center", padding: 24, color: "var(--text-tertiary)", fontSize: 13 }}>Click "Run simulation" to simulate the playoff phases.</div>
       )}
 
       {sims && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-secondary,#888)", letterSpacing: 0.5, marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 0.5, marginBottom: 10 }}>
             FINAL POSITION PROBABILITIES — {sims.N.toLocaleString()} SIMULATIONS
           </div>
           <div style={{ ...S.card }}>
@@ -1359,19 +1456,19 @@ function SimulateTab() {
               const tt = T(s.id);
               const pct = (v) => Math.round(v / sims.N * 100);
               return (
-                <div key={s.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border-tertiary,#f0f0f0)" }}>
+                <div key={s.id} data-row style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-subtle)" }}>
                   {/* Header row */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                    <span style={{ fontSize: 11, color: "#999", width: 18, textAlign: "right", flexShrink: 0 }}>{i+1}</span>
-                    <span style={S.teamDot(tt?.color, 9)} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)", width: 18, textAlign: "right", flexShrink: 0 }}>{i+1}</span>
+                    <span style={S.teamDot(tt?.color, 10)} />
                     <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{tt?.name}</span>
-                    <span style={{ fontSize: 11, color: "#999" }}>~{avgPts} pts</span>
-                    <span style={{ fontSize: 11, color: "var(--color-text-secondary,#666)", background: "var(--color-background-secondary,#f5f5f5)", padding: "1px 7px", borderRadius: 8 }}>
-                      Most likely: <strong>#{modalPos} — {POS_LABEL(modalPos)}</strong>
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>~{avgPts} pts</span>
+                    <span style={{ fontSize: 10, color: "var(--text-secondary)", background: "var(--bg-elevated)", padding: "2px 8px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                      #{modalPos} {POS_LABEL(modalPos)}
                     </span>
                   </div>
-                  {/* Position heatmap strip: 14 slots, width ∝ probability */}
-                  <div style={{ display: "flex", height: 10, borderRadius: 4, overflow: "hidden", marginBottom: 6, background: "var(--color-background-secondary,#f0f0f0)" }}>
+                  {/* Position heatmap strip */}
+                  <div style={{ display: "flex", height: 14, borderRadius: 4, overflow: "hidden", marginBottom: 6, background: "var(--bg-elevated)" }}>
                     {pc.map((cnt, pos) => {
                       const w = cnt / sims.N * 100;
                       if (w < 0.3) return null;
@@ -1382,7 +1479,7 @@ function SimulateTab() {
                     })}
                   </div>
                   {/* Position number markers */}
-                  <div style={{ display: "flex", marginBottom: 5 }}>
+                  <div style={{ display: "flex", marginBottom: 6 }}>
                     {pc.map((cnt, pos) => {
                       const w = cnt / sims.N * 100;
                       if (w < 3) return null;
@@ -1394,18 +1491,18 @@ function SimulateTab() {
                     })}
                   </div>
                   {/* Outcome pills */}
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {[
-                      { key: "champion",  label: "Champion",    color: "#FFB800" },
-                      { key: "european",  label: "European",    color: "#3d8af7" },
-                      { key: "euPO",      label: "Europe PO",   color: "#00985f" },
-                      { key: "safe",      label: "Safe",        color: "#9e9e9e" },
-                      { key: "relegated", label: "Relegated",   color: "#e03535" },
+                      { key: "champion",  label: "Champ",       color: "var(--gold)" },
+                      { key: "european",  label: "European",    color: "var(--accent)" },
+                      { key: "euPO",      label: "Europe PO",   color: "var(--green)" },
+                      { key: "safe",      label: "Safe",        color: "var(--gray)" },
+                      { key: "relegated", label: "Relegated",   color: "var(--red)" },
                     ].filter(o => oc[o.key] > 0).map(o => {
                       const p = pct(oc[o.key]);
                       return (
-                        <span key={o.key} style={{ fontSize: 11, color: o.color, fontWeight: p > 50 ? 700 : 500 }}>
-                          {o.label} <strong>{p}%</strong>
+                        <span key={o.key} style={{ fontSize: 10, color: o.color, fontWeight: 600, background: "var(--bg-elevated)", padding: "2px 8px", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                          {o.label} {p}%
                         </span>
                       );
                     })}
@@ -1414,7 +1511,7 @@ function SimulateTab() {
               );
             })}
           </div>
-          <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 8, lineHeight: 1.4 }}>
+          <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 8, lineHeight: 1.4 }}>
             Calibrated on {MATCHES.filter(m=>m.played).length} played matches. Final positions after simulating regular season + all three playoff phases. Bottom 2 of Relegation group = relegated.
           </p>
         </>
@@ -1493,9 +1590,9 @@ function TopScorersTab() {
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>FILTER BY TEAM</label>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>FILTER BY TEAM</label>
         <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}
-          style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)" }}>
+          style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid var(--border-primary)", borderRadius: 8, background: "var(--bg-primary)", color: "var(--text-primary)" }}>
           <option value="all">All Teams</option>
           {LEAGUE.teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -1504,7 +1601,7 @@ function TopScorersTab() {
       <div style={{ ...S.card }}>
         <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "var(--color-background-secondary,#f8f9fa)", borderBottom: "1px solid var(--color-border-tertiary,#eee)" }}>
+            <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-subtle)" }}>
               {["#","Player","Team","","G"].map((h,i) => (
                 <th key={i} style={{ textAlign: h === "Player" || h === "" ? "left" : "center", padding: "7px 6px", fontSize: 10, fontWeight: 600, color: "#888", letterSpacing: 0.4 }}>{h}</th>
               ))}
@@ -1515,31 +1612,31 @@ function TopScorersTab() {
               const tt = T(s.team);
               const bar = Math.round((s.goals / maxGoals) * 100);
               return (
-                <tr key={s.name + s.team} style={{ borderTop: "1px solid var(--color-border-tertiary,#f0f0f0)" }}>
+                <tr key={s.name + s.team} style={{ borderTop: "1px solid var(--border-subtle)" }}>
                   <td style={{ textAlign: "center", padding: "8px 6px", fontSize: 11, color: i < 3 ? "#3d8af7" : "#999", fontWeight: i < 3 ? 700 : 400, width: 28 }}>{i + 1}</td>
                   <td style={{ padding: "8px 6px", fontWeight: i < 3 ? 700 : 500 }}>{s.name}</td>
                   <td style={{ padding: "8px 4px", whiteSpace: "nowrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={S.teamDot(tt?.color, 8)} />
-                      <span style={{ fontSize: 11, color: "var(--color-text-secondary,#666)" }}>{tt?.short}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{tt?.short}</span>
                     </div>
                   </td>
                   <td style={{ padding: "8px 6px", width: 90 }}>
-                    <div style={{ height: 5, borderRadius: 3, background: "var(--color-border-tertiary,#eee)", overflow: "hidden" }}>
+                    <div style={{ height: 5, borderRadius: 3, background: "var(--border-subtle)", overflow: "hidden" }}>
                       <div style={{ height: "100%", width: bar + "%", background: tt?.color || "#3d8af7", borderRadius: 3 }} />
                     </div>
                   </td>
-                  <td style={{ textAlign: "center", padding: "8px 8px", fontWeight: 700, fontSize: 15, color: i < 3 ? "#3d8af7" : "var(--color-text-primary,#222)", width: 32 }}>{s.goals}</td>
+                  <td style={{ textAlign: "center", padding: "8px 8px", fontWeight: 700, fontSize: 15, color: i < 3 ? "#3d8af7" : "var(--text-primary)", width: 32 }}>{s.goals}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 24, color: "var(--color-text-tertiary,#aaa)", fontSize: 13 }}>No scorer data available for this team.</div>
+          <div style={{ textAlign: "center", padding: 24, color: "var(--text-tertiary)", fontSize: 13 }}>No scorer data available for this team.</div>
         )}
       </div>
-      <p style={{ fontSize: 10, color: "var(--color-text-tertiary,#aaa)", marginTop: 8 }}>
+      <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 8 }}>
         Based on matches with available goalscorer data. Own goals excluded.
       </p>
     </div>
@@ -1573,19 +1670,19 @@ function ContactTab() {
 
   const INPUT = {
     width: "100%", padding: "10px 12px", fontSize: 13,
-    border: "1px solid var(--color-border-secondary,#ddd)", borderRadius: 8,
-    background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary,#222)",
-    boxSizing: "border-box",
+    border: "1px solid var(--border-primary)", borderRadius: 8,
+    background: "var(--bg-elevated)", color: "var(--text-primary)",
+    boxSizing: "border-box", transition: "border-color var(--transition-fast)",
   };
-  const LBL = { fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary,#888)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
+  const LBL = { fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 5, letterSpacing: 0.4 };
 
   if (status === "success") return (
     <div style={{ textAlign: "center", padding: "56px 24px" }}>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary,#222)", marginBottom: 8 }}>Message sent!</div>
-      <div style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>Thanks for the feedback — I'll get back to you soon.</div>
+      <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--green-dim)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>✓</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Message sent!</div>
+      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Thanks for the feedback — I'll get back to you soon.</div>
       <button onClick={() => { setStatus("idle"); setForm({ name: "", email: "", message: "" }); }}
-        style={{ marginTop: 20, padding: "8px 20px", background: "#3d8af7", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+        style={{ marginTop: 20, padding: "8px 20px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all var(--transition-fast)" }}>
         Send another
       </button>
     </div>
@@ -1593,8 +1690,8 @@ function ContactTab() {
 
   return (
     <div>
-      <div style={{ ...S.card, padding: "12px 14px", marginBottom: 16, borderLeft: "3px solid #3d8af7" }}>
-        <p style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", margin: 0, lineHeight: 1.5 }}>
+      <div style={{ ...S.card, padding: "14px 16px", marginBottom: 16, borderLeft: "3px solid var(--accent)" }}>
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
           Found a bug? Have a suggestion? Want a feature? Drop a message below.
         </p>
       </div>
@@ -1618,12 +1715,12 @@ function ContactTab() {
             style={{ ...INPUT, resize: "vertical", lineHeight: 1.5 }} />
         </div>
         {status === "error" && (
-          <div style={{ fontSize: 12, color: "#e03535", padding: "8px 12px", background: "rgba(224,53,53,0.08)", borderRadius: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--red)", padding: "8px 12px", background: "var(--red-dim)", borderRadius: 8 }}>
             Something went wrong. Please try again or email directly.
           </div>
         )}
         <button type="submit" disabled={status === "submitting"}
-          style={{ padding: "10px 24px", background: status === "submitting" ? "#aaa" : "#3d8af7", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: status === "submitting" ? "default" : "pointer", alignSelf: "flex-start" }}>
+          style={{ padding: "10px 24px", background: status === "submitting" ? "var(--text-tertiary)" : "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: status === "submitting" ? "default" : "pointer", alignSelf: "flex-start", transition: "all var(--transition-fast)" }}>
           {status === "submitting" ? "Sending…" : "Send message"}
         </button>
       </form>
@@ -1634,9 +1731,9 @@ function ContactTab() {
 // ─── Scenarios placeholder (tab disabled pending rewrite) ────────────────────
 function ScenariosPlaceholder() {
   return (
-    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--color-text-tertiary,#aaa)" }}>
+    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--text-tertiary)" }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>🔧</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-secondary,#666)", marginBottom: 8 }}>Scenarios coming soon</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8 }}>Scenarios coming soon</div>
       <div style={{ fontSize: 13, maxWidth: 280, margin: "0 auto", lineHeight: 1.6 }}>
         This tab is being updated for the playoff phase. Use the <strong>Simulate</strong> tab for probability analysis in the meantime.
       </div>
@@ -1663,25 +1760,25 @@ export default function App() {
   ];
 
   return (
-    <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", maxWidth: 800, margin: "0 auto", padding: "0 0 32px" }}>
+    <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 0 32px" }}>
       {/* Header */}
-      <div style={{ background: "var(--color-background-primary,#fff)", borderBottom: "1px solid var(--color-border-tertiary,#e9ecef)", padding: "12px 16px 0", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #003893 60%, #4B8BDC)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 6px rgba(0,56,147,0.3)" }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>SL</span>
+      <div style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-subtle)", padding: "14px 16px 0", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(12px)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #003893 40%, #4B8BDC)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(0,56,147,0.4), 0 0 0 1px rgba(75,139,220,0.2)" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>SL</span>
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.3, color: "var(--color-text-primary,#111)" }}>Greek Super League</div>
-            <div style={{ fontSize: 11, color: "var(--color-text-secondary,#777)", fontWeight: 500 }}>
-              2025–26 · Regular Season Complete · Playoffs begin Apr 4
+            <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3, color: "var(--text-primary)" }}>Greek Super League</div>
+            <div style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 500 }}>
+              2025–26 · Playoffs begin Apr 4
             </div>
           </div>
         </div>
         {/* Tab bar */}
-        <div style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" }}>
+        <div className="tab-scroll" style={{ display: "flex", gap: 0, overflowX: "auto" }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", background: "transparent", border: "none", borderBottom: tab === t.id ? "2px solid #3d8af7" : "2px solid transparent", fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "#3d8af7" : "var(--color-text-secondary,#666)", whiteSpace: "nowrap", transition: "color 0.15s" }}>
+              style={{ padding: "8px 14px", fontSize: 12, cursor: "pointer", background: "transparent", border: "none", borderBottom: tab === t.id ? "2px solid var(--accent)" : "2px solid transparent", fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "var(--accent)" : "var(--text-secondary)", whiteSpace: "nowrap", transition: "all var(--transition-fast)", letterSpacing: 0.2 }}>
               {t.label}
             </button>
           ))}
@@ -1689,7 +1786,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 12px 0" }}>
+      <div key={tab} style={{ padding: "14px 12px 0", animation: "fadeIn 0.2s ease" }}>
         {tab === "standings"  && <StandingsTab />}
         {tab === "fixtures"   && <FixturesTab />}
         {tab === "playoffs"   && <PlayoffsTab />}
